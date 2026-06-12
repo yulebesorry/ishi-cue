@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Upload, 
@@ -118,13 +118,6 @@ export const ImageColorPicker: React.FC<ImageColorPickerProps> = ({ isDarkMode, 
     onColorsExtracted([hex]);
   };
 
-  useEffect(() => {
-    if (image) {
-      const img = new Image();
-      img.src = image;
-      img.onload = extractColors;
-    }
-  }, [image]);
 
   const reset = () => {
     setImage(null);
@@ -134,7 +127,7 @@ export const ImageColorPicker: React.FC<ImageColorPickerProps> = ({ isDarkMode, 
   };
 
   return (
-    <div className={`flex flex-col gap-8 p-6 rounded-none border border-zinc-800 retro-shadow ${isDarkMode ? 'bg-[#111111]' : 'bg-white'} min-h-[600px]`}>
+    <div className={`flex flex-col gap-8 p-6 rounded-none border border-zinc-800 retro-shadow ${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} min-h-[600px]`}>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-none ${isDarkMode ? 'bg-zinc-800 text-zinc-100' : 'bg-zinc-900 text-white'} flex items-center justify-center`}>
@@ -142,7 +135,7 @@ export const ImageColorPicker: React.FC<ImageColorPickerProps> = ({ isDarkMode, 
           </div>
           <div>
             <h2 className="text-lg font-bold uppercase tracking-widest">Image to Palette</h2>
-            <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} font-medium`}>Extract colors from any image</p>
+            <p className={`text-xs font-semibold ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>Extract colors from any image</p>
           </div>
         </div>
 
@@ -177,12 +170,12 @@ export const ImageColorPicker: React.FC<ImageColorPickerProps> = ({ isDarkMode, 
             className="absolute inset-0 opacity-0 cursor-pointer"
           />
           <div className="space-y-4">
-            <div className={`w-16 h-16 mx-auto rounded-none ${isDarkMode ? 'bg-zinc-800 text-zinc-500' : 'bg-gray-100 text-gray-400'} flex items-center justify-center`}>
+            <div className={`w-16 h-16 mx-auto rounded-none ${isDarkMode ? 'bg-zinc-800 text-zinc-300' : 'bg-stone-200 text-[#2C2418]'} flex items-center justify-center`}>
               <Upload size={32} />
             </div>
             <div className="space-y-1">
               <p className="text-sm font-bold uppercase tracking-wider">Drop your image here</p>
-              <p className="text-xs text-gray-400">or click to browse files</p>
+              <p className={`text-xs font-semibold ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>or click to browse files</p>
             </div>
             {error && (
               <div className="flex items-center justify-center gap-2 text-red-500 text-xs font-bold uppercase">
@@ -202,6 +195,7 @@ export const ImageColorPicker: React.FC<ImageColorPickerProps> = ({ isDarkMode, 
                 alt="Uploaded"
                 className="w-full h-auto max-h-[600px] object-contain"
                 onClick={handleImageClick}
+                onLoad={extractColors}
                 referrerPolicy="no-referrer"
               />
               <canvas ref={canvasRef} className="hidden" />
@@ -213,7 +207,7 @@ export const ImageColorPicker: React.FC<ImageColorPickerProps> = ({ isDarkMode, 
 
           <div className="lg:col-span-4 space-y-8">
             <div className="space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">Dominant Colors</h3>
+              <h3 className={`text-xs font-bold uppercase tracking-widest ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>Dominant Colors</h3>
               <div className="grid grid-cols-2 gap-3">
                 {extractedColors.map((hex, i) => (
                   <button
@@ -255,7 +249,7 @@ export const ImageColorPicker: React.FC<ImageColorPickerProps> = ({ isDarkMode, 
                   </button>
                 </div>
                 <div className="pt-4 border-t border-zinc-800">
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-green-500 uppercase">
+                  <div className={`flex items-center gap-2 text-[10px] font-bold uppercase ${isDarkMode ? 'text-green-400' : 'text-green-700'}`}>
                     <Check size={14} />
                     Applied as base color
                   </div>
@@ -264,7 +258,7 @@ export const ImageColorPicker: React.FC<ImageColorPickerProps> = ({ isDarkMode, 
             )}
 
             <div className={`p-4 border-l-4 border-zinc-800 ${isDarkMode ? 'bg-zinc-800/50' : 'bg-zinc-50'} text-[10px] italic`}>
-              <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+              <p className={isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}>
                 Tip: Upload an image to automatically extract its most prominent colors, or click directly on the image to pick a specific hue.
               </p>
             </div>

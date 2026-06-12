@@ -1,10 +1,28 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@400;500;600;700&family=Fredoka:wght@600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Space Grotesk", "Outfit", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --font-display: "Fredoka", sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+}
+
+/* Colors sampled directly from the IDEO editorial illustrations */
+:root {
+  --cream: #EDE8DC;        /* parchment paper background */
+  --cream-card: #F5F1E8;   /* slightly lighter card surface */
+  --ink: #1A1A1A;          /* near-black for text & borders */
+  --ink-mid: #5C4E45;      /* warm mid-tone for secondary text (~5:1 on cream) */
+  --accent: #2855A8;       /* cobalt blue — primary interactive, safe for all CVD types */
+  --accent-hover: #1E3F8A; /* darker cobalt for hover */
+  --accent-tint: #EEF2FF;  /* cobalt tint for active backgrounds */
+  --ochre: #B8860B;        /* mustard gold — secondary accent */
+  --forest: #4A7A3A;       /* forest green — success / tertiary */
+  --terracotta: #C8402A;   /* kept for error/danger states only, NOT interactive UI */
+  --warm-dark: #1A1612;
+  --warm-dark-card: #221E18;
+  --warm-dark-mid: #1E1A15;
+  --warm-dark-form: #2A241E;
 }
 
 @layer base {
@@ -13,7 +31,6 @@
   }
 }
 
-/* Custom scrollbar for a cleaner look */
 ::-webkit-scrollbar {
   width: 8px;
 }
@@ -23,7 +40,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-200 rounded-none hover:bg-gray-300 transition-colors;
+  background-color: #c5bfb3;
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #a89f93;
 }
 
 @layer utilities {
@@ -34,10 +56,29 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
   .retro-shadow {
-    box-shadow: -2px 2px 0px 0px rgba(0, 0, 0, 0.15);
+    box-shadow: -2px 2px 0px 0px rgba(26, 22, 18, 0.18);
   }
   .dark .retro-shadow {
     box-shadow: -2px 2px 0px 0px rgba(255, 255, 255, 0.05);
+  }
+
+  .grain-overlay {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 200px 200px;
+    opacity: 0.038;
+    mix-blend-mode: multiply;
+  }
+
+  .dot-grid-decoration {
+    background-image: radial-gradient(circle, currentColor 1.5px, transparent 1.5px);
+    background-size: 10px 10px;
+  }
+
+  .bauhaus-rule {
+    border-top: 1px solid;
+    border-bottom: 3px solid;
   }
 }

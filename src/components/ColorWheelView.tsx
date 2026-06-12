@@ -24,6 +24,7 @@ export const ColorWheelView: React.FC<ColorWheelViewProps> = ({
   const [isAltPressed, setIsAltPressed] = useState(false);
   const [localPos, setLocalPos] = useState<{ x: number, y: number } | null>(null);
   const dragRef = useRef<{ index: number; startColor: any } | null>(null);
+  const lastNode0HexRef = useRef<string | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -106,13 +107,11 @@ export const ColorWheelView: React.FC<ColorWheelViewProps> = ({
       const newSat = Math.max(0, Math.min(100, (dist / radius) * 100));
       const newColor = Color.hsv(currentColor.hue(), newSat, currentColor.value());
       onUpdate(index, { hex: newColor.hex() });
+      if (index === 0) lastNode0HexRef.current = newColor.hex();
     } else {
       const newColor = Color.hsv(angle, currentColor.saturationv(), currentColor.value());
-      if (index === 0 && onBaseColorChange) {
-        onBaseColorChange(newColor.hex());
-      } else {
-        onUpdate(index, { hex: newColor.hex() });
-      }
+      onUpdate(index, { hex: newColor.hex() });
+      if (index === 0) lastNode0HexRef.current = newColor.hex();
     }
   }, [palette, isAltPressed, onUpdate, onBaseColorChange, center, radius]);
 
@@ -127,10 +126,15 @@ export const ColorWheelView: React.FC<ColorWheelViewProps> = ({
   }, [palette, colorNodes]);
 
   const handlePanEnd = useCallback(() => {
+    const wasDraggingNode0 = dragRef.current?.index === 0;
     setActiveNode(null);
     setLocalPos(null);
     dragRef.current = null;
-  }, []);
+    if (wasDraggingNode0 && lastNode0HexRef.current && onBaseColorChange) {
+      onBaseColorChange(lastNode0HexRef.current);
+      lastNode0HexRef.current = null;
+    }
+  }, [onBaseColorChange]);
 
   const handleWheel = useCallback((index: number, e: React.WheelEvent) => {
     e.preventDefault();
@@ -314,7 +318,7 @@ export const ColorWheelView: React.FC<ColorWheelViewProps> = ({
           {palette.map((color, i) => (
             <div key={i} className="flex items-center gap-2 flex-shrink-0">
               <div className="w-2 h-2 rounded-none" style={{ backgroundColor: color.hex }} />
-              <span className="text-[11px] font-black text-gray-400 uppercase tracking-widest">{color.name}</span>
+              <span className={`text-[11px] font-black uppercase tracking-widest ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>{color.name}</span>
             </div>
           ))}
         </div>
@@ -322,21 +326,21 @@ export const ColorWheelView: React.FC<ColorWheelViewProps> = ({
       
       <div className="mt-16 text-center max-w-sm">
         <h3 className={`text-sm font-bold uppercase tracking-widest mb-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Interactive Control Surface</h3>
-        <div className="grid grid-cols-1 gap-2 text-[10px] text-gray-500 uppercase tracking-wider">
+        <div className={`grid grid-cols-1 gap-2 text-[11px] font-semibold uppercase tracking-wider ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>
           <div className="flex items-center justify-between border-b border-zinc-800 pb-1">
             <span>Drag Node</span>
-            <span className="text-zinc-400">Adjust Hue</span>
+            <span className={isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}>Adjust Hue</span>
           </div>
           <div className="flex items-center justify-between border-b border-zinc-800 pb-1">
             <span>Alt + Drag</span>
-            <span className="text-zinc-400">Adjust Saturation</span>
+            <span className={isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}>Adjust Saturation</span>
           </div>
           <div className="flex items-center justify-between border-b border-zinc-800 pb-1">
             <span>Scroll Node</span>
-            <span className="text-zinc-400">Adjust Lightness</span>
+            <span className={isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}>Adjust Lightness</span>
           </div>
         </div>
-        <p className="mt-4 text-[9px] text-gray-400 italic leading-relaxed">
+        <p className={`mt-4 text-[10px] italic leading-relaxed font-medium ${isDarkMode ? 'text-stone-400' : 'text-[#4A3C34]'}`}>
           Dragging the primary node (first in palette) will rotate the entire harmony rule.
         </p>
       </div>

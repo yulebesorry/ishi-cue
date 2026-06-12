@@ -4,20 +4,12 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Palette, 
-  Settings2, 
-  RefreshCw, 
-  Copy, 
-  Check, 
-  Sparkles, 
+import {
+  Palette,
+  RefreshCw,
+  Sparkles,
   Info,
-  X,
-  ChevronDown,
-  Sliders,
-  Palette as PaletteIcon,
   Zap,
-  Type,
   Layout,
   Eye,
   Monitor,
@@ -26,26 +18,24 @@ import {
   Sun,
   Moon,
   Disc,
-  Settings,
   Download,
-  Upload
+  Upload,
+  ScanEye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Color from 'color';
 import confetti from 'canvas-confetti';
-import { GoogleGenAI } from "@google/genai";
-import { 
-  ColorTheoryRule, 
-  PaletteColor, 
-  AgentConfig, 
-  DEFAULT_AGENTS 
-} from './types';
-import { generatePaletteFromRule, getColorName } from './colorUtils';
+import { ColorTheoryRule, PaletteColor } from './types';
+import { generatePaletteFromRule, getColorName, simulateColorBlind, paletteConflicts, CB_LABELS } from './colorUtils';
+import type { ColorBlindType } from './colorUtils';
+
+const CB_TYPES: ColorBlindType[] = ['protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia'];
 import { ColorWheelView } from './components/ColorWheelView';
 import { AccessibilityView } from './components/AccessibilityView';
 import { ColorSwatch } from './components/ColorSwatch';
 import { ExportModal } from './components/ExportModal';
 import { ImageColorPicker } from './components/ImageColorPicker';
+import { IshiharaDemo } from './components/IshiharaDemo';
 
 const RULES: { id: ColorTheoryRule; name: string; description: string }[] = [
   { id: 'design-system', name: 'Design System', description: 'One Color → Full Design System. Generates 10 essential UI colors.' },
@@ -59,11 +49,36 @@ const RULES: { id: ColorTheoryRule; name: string; description: string }[] = [
 
 const LogoIcon = ({ size = 24, className = "" }: { size?: number, className?: string }) => (
   <svg width={size} height={size} viewBox="0 0 40 40" className={className} style={{ minWidth: size, minHeight: size }}>
-    <path d="M20 20 L20 0 A20 20 0 0 1 40 20 Z" fill="#FF5F5F" stroke="#000000" strokeWidth="1" />
-    <path d="M20 20 L40 20 A20 20 0 0 1 20 40 Z" fill="#FFD95F" stroke="#000000" strokeWidth="1" />
-    <path d="M20 20 L20 40 A20 20 0 0 1 0 20 Z" fill="#5FFF5F" stroke="#000000" strokeWidth="1" />
-    <path d="M20 20 L0 20 A20 20 0 0 1 20 0 Z" fill="#5F5FFF" stroke="#000000" strokeWidth="1" />
-    <circle cx="20" cy="20" r="4" fill="#FFFFFF" stroke="#000000" strokeWidth="1" />
+    {/* Crosshair guide lines */}
+    <line x1="20" y1="0" x2="20" y2="40" stroke="#1A1A1A" strokeWidth="0.4" opacity="0.2" />
+    <line x1="0" y1="20" x2="40" y2="20" stroke="#1A1A1A" strokeWidth="0.4" opacity="0.2" />
+
+    {/* Outer orbit ring */}
+    <circle cx="20" cy="20" r="18.5" fill="none" stroke="#1A1A1A" strokeWidth="0.6" opacity="0.3" />
+
+    {/* Inner orbit ring */}
+    <circle cx="20" cy="20" r="12" fill="none" stroke="#1A1A1A" strokeWidth="0.5" opacity="0.3" />
+
+    {/* Bullseye — thick black ring */}
+    <circle cx="20" cy="20" r="9" fill="#1A1A1A" />
+
+    {/* Tick-mark ring inside bullseye */}
+    <circle cx="20" cy="20" r="7.5" fill="none" stroke="#F5F1E8" strokeWidth="0.9" strokeDasharray="0.9 1.7" opacity="0.85" />
+
+    {/* Inner cream circle */}
+    <circle cx="20" cy="20" r="6.5" fill="#F5F1E8" />
+
+    {/* Right half of inner circle — cobalt dial */}
+    <path d="M20 13.5 A6.5 6.5 0 0 1 20 26.5 Z" fill="#2855A8" />
+
+    {/* Orbiting dots — outer ring */}
+    <circle cx="20" cy="1.5" r="2.2" fill="#1A1A1A" />
+    <circle cx="36" cy="10" r="1.4" fill="#8B8478" />
+
+    {/* Orbiting dots — inner ring */}
+    <circle cx="9" cy="13" r="1.8" fill="#C8402A" />
+    <circle cx="8" cy="26" r="1.6" fill="#B8860B" />
+    <circle cx="25" cy="31" r="1.8" fill="#2855A8" />
   </svg>
 );
 
@@ -72,15 +87,8 @@ export default function App() {
   const [rule, setRule] = useState<ColorTheoryRule>('design-system');
   const [palette, setPalette] = useState<PaletteColor[]>([]);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
-  const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [agents, setAgents] = useState<AgentConfig[]>(DEFAULT_AGENTS);
-  const [activeAgentId, setActiveAgentId] = useState(DEFAULT_AGENTS[0].id);
-  const [prompt, setPrompt] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generationError, setGenerationError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'palette' | 'preview' | 'wheel' | 'system' | 'image'>('system');
-  const [isAiExpanded, setIsAiExpanded] = useState(false);
+  const [viewMode, setViewMode] = useState<'palette' | 'preview' | 'wheel' | 'system' | 'image' | 'ishihara'>('system');
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   // Initialize palette
@@ -160,80 +168,19 @@ export default function App() {
     });
   };
 
-  const generateAIPalette = async () => {
-    if (!prompt.trim()) return;
-    setIsGenerating(true);
-    setGenerationError(null);
-    
-    try {
-      const agent = agents.find(a => a.id === activeAgentId) || agents[0];
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
-      const response = await ai.models.generateContent({
-        model: agent.model,
-        contents: `Mood/Keyword: ${prompt}${activeAgentId === 'brand-expert' ? ' (Reference: https://brandingstyleguides.com/)' : ''}`,
-        config: {
-          systemInstruction: agent.systemInstruction,
-          temperature: agent.temperature,
-          topP: agent.topP,
-          topK: agent.topK,
-          responseMimeType: "application/json",
-          tools: activeAgentId === 'brand-expert' ? [{ urlContext: {} }] : undefined,
-        }
-      });
-
-      const text = response.text;
-      if (text) {
-        const hexCodes: string[] = JSON.parse(text);
-        if (Array.isArray(hexCodes)) {
-          setPalette(prev => {
-            let aiIndex = 0;
-            return prev.map((color, i) => {
-              if (color.isLocked) return color;
-              const hex = hexCodes[aiIndex] || hexCodes[0];
-              aiIndex++;
-              return { 
-                hex, 
-                name: getColorName(hex),
-                role: color.role
-              };
-            });
-          });
-          if (hexCodes[0]) setBaseColor(hexCodes[0]);
-          confetti({
-            particleCount: 100,
-            spread: 70,
-            origin: { y: 0.6 }
-          });
-        }
-      }
-    } catch (error: any) {
-      console.error("AI Generation failed:", error);
-      
-      if (error?.message?.includes('429') || error?.message?.includes('quota')) {
-        setGenerationError("The AI is taking a breather (Quota Exceeded). Please wait a minute and try again.");
-      } else {
-        setGenerationError("Something went wrong with the AI. Please try a different prompt.");
-      }
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const updateAgent = (id: string, updates: Partial<AgentConfig>) => {
-    setAgents(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
-  };
-
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${isDarkMode ? 'bg-[#0a0a0a] text-[#f5f5f5] dark' : 'bg-[#F9FAFB] text-[#111827]'} font-mono selection:bg-zinc-200`}>
+    <div className={`min-h-screen transition-colors duration-300 ${isDarkMode ? 'bg-[#1A1612] text-[#F5F1E8] dark' : 'bg-[#EDE8DC] text-[#1A1A1A]'} font-mono selection:bg-stone-200`}>
+      {/* Paper grain texture overlay */}
+      <div className="grain-overlay fixed inset-0 pointer-events-none z-[9998]" aria-hidden="true" />
       {/* Header */}
-      <header className={`border-b border-zinc-800 ${isDarkMode ? 'bg-[#111111]' : 'bg-white'} px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between sticky top-0 z-10`}>
-        <div className="flex items-center gap-3">
+      <header className={`border-b border-zinc-800 ${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between sticky top-0 z-10`}>
+        <div className="flex items-center gap-3 sm:gap-4">
+          <LogoIcon size={42} className="shrink-0" />
           <div>
-            <h1 className="text-3xl font-bold tracking-tighter uppercase leading-none flex items-center gap-0.5 font-display">
-              SMORGASB<LogoIcon size={28} className="inline-block align-middle mb-1" />ARD
+            <h1 className="text-3xl font-bold tracking-tighter uppercase leading-none font-display">
+              ISHI CUE
             </h1>
-            <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} font-medium uppercase tracking-wider`}>semi-pro palette picker</p>
+            <p className={`text-[10px] ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'} font-black uppercase tracking-[0.2em]`}>Color tool · Accessible by design</p>
           </div>
         </div>
         
@@ -247,91 +194,24 @@ export default function App() {
             >
               <div className={`absolute top-0.5 bottom-0.5 w-3 sm:w-4 bg-zinc-900 border border-zinc-700 transition-all duration-300 ${isDarkMode ? 'left-[22px] sm:left-[26px]' : 'left-0.5'}`} />
             </button>
-            <Moon size={12} className={`sm:w-[14px] sm:h-[14px] ${isDarkMode ? 'text-zinc-100' : 'text-gray-400'}`} />
+            <Moon size={12} className={`sm:w-[14px] sm:h-[14px] ${isDarkMode ? 'text-zinc-100' : 'text-[#2C2418]'}`} />
           </div>
         </div>
       </header>
 
       {/* Main Content */}
       <main className={`max-w-7xl mx-auto p-4 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-stretch`}>
-        {/* AI Assistant Section */}
-        <section className={`lg:col-span-12 ${isDarkMode ? 'bg-[#111111]' : 'bg-white'} p-3 sm:p-4 rounded-none border border-zinc-800 retro-shadow space-y-3`}>
-          <div className="flex flex-row items-center justify-between gap-2 sm:gap-4">
-            <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
-              <div className={`shrink-0 w-8 h-8 sm:w-9 sm:h-9 ${isDarkMode ? 'bg-zinc-800 text-zinc-100' : 'bg-zinc-100 text-zinc-900'} rounded-none flex items-center justify-center shadow-none`}>
-                <Sparkles size={16} />
-              </div>
-              <div className="overflow-hidden">
-                <h2 className="text-sm sm:text-lg font-bold tracking-tight truncate">AI Assistant</h2>
-                <p className={`hidden sm:block text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Describe your vision</p>
-              </div>
-            </div>
-            <div className={`flex items-center gap-1 sm:gap-2 ${isDarkMode ? 'bg-[#1a1a1a]' : 'bg-gray-50'} p-1 sm:p-1.5 rounded-none border border-zinc-800 shrink-0`}>
-              <span className="hidden xs:inline text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 sm:pl-2">Agent:</span>
-              <select 
-                value={activeAgentId}
-                onChange={(e) => setActiveAgentId(e.target.value)}
-                className={`${isDarkMode ? 'bg-[#222222] text-white' : 'bg-white text-zinc-900'} border border-zinc-800 text-[10px] sm:text-xs font-bold rounded-none px-1.5 sm:px-3 py-1 sm:py-1.5 outline-none cursor-pointer hover:border-zinc-600 transition-colors min-w-[120px] sm:min-w-[160px]`}
-              >
-                {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-              <button 
-                onClick={() => setIsAgentModalOpen(true)}
-                className={`flex items-center gap-1 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-none border border-zinc-800 ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-100' : 'bg-white hover:bg-gray-100 text-zinc-900'} transition-colors text-[9px] sm:text-[10px] font-bold uppercase tracking-wider`}
-              >
-                <Settings2 size={10} />
-                <span className="hidden xs:inline">Settings</span>
-                <span className="xs:hidden">Set</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-col md:flex-row gap-3 items-stretch">
-            <div className="flex-1 relative">
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="e.g., 'A minimalist organic skincare brand' or 'Vibrant 80s synthwave aesthetic'..."
-                className={`w-full ${isDarkMode ? 'bg-[#1a1a1a] text-white focus:bg-[#222222]' : 'bg-gray-50 text-zinc-900 focus:bg-white'} border border-zinc-800 rounded-none p-3 text-sm focus:ring-2 focus:ring-zinc-900 outline-none min-h-[80px] h-full resize-none transition-all`}
-              />
-              {generationError && (
-                <div className="absolute -bottom-6 left-0 right-0 text-[10px] font-bold text-red-500 uppercase tracking-wider animate-pulse">
-                  {generationError}
-                </div>
-              )}
-            </div>
-            <button
-              onClick={generateAIPalette}
-              disabled={isGenerating || !prompt.trim()}
-              className={`md:w-48 ${isDarkMode ? 'bg-zinc-100 text-zinc-900 hover:bg-white' : 'bg-zinc-900 text-white hover:bg-black'} px-8 py-3 rounded-none font-bold transition-all disabled:opacity-50 retro-shadow flex items-center justify-center gap-3 group`}
-            >
-              {isGenerating ? (
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                  className="flex items-center justify-center"
-                >
-                  <LogoIcon size={20} />
-                </motion.div>
-              ) : (
-                <Zap size={20} className="group-hover:scale-110 transition-transform" />
-              )}
-              <span>{isGenerating ? 'Generating...' : 'Generate'}</span>
-            </button>
-          </div>
-        </section>
-
         {/* Palette Display */}
         <section className="lg:col-span-8 flex flex-col gap-6">
           <div className="space-y-3 flex-none">
-            <div className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between ${isDarkMode ? 'bg-[#111111]' : 'bg-white'} p-2 rounded-none border border-zinc-800 retro-shadow gap-3`}>
+            <div className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between ${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} p-2 rounded-none border border-zinc-800 retro-shadow gap-3`}>
               <div className="grid grid-cols-2 sm:flex gap-1 w-full sm:w-auto">
                 <button 
                   onClick={() => setViewMode('palette')}
                   className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
                     viewMode === 'palette' 
-                      ? (isDarkMode ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-white') 
-                      : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800'
+                      ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white') 
+                      : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
                   }`}
                 >
                   <Palette size={16} />
@@ -341,8 +221,8 @@ export default function App() {
                   onClick={() => setViewMode('wheel')}
                   className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
                     viewMode === 'wheel' 
-                      ? (isDarkMode ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-white') 
-                      : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800'
+                      ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white') 
+                      : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
                   }`}
                 >
                   <Disc size={16} />
@@ -352,59 +232,62 @@ export default function App() {
                   onClick={() => setViewMode('preview')}
                   className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
                     viewMode === 'preview' 
-                      ? (isDarkMode ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-white') 
-                      : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800'
+                      ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white') 
+                      : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
                   }`}
                 >
                   <Eye size={16} />
                   Preview
                 </button>
-                <button 
+                <button
                   onClick={() => setViewMode('system')}
                   className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
-                    viewMode === 'system' 
-                      ? (isDarkMode ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-white') 
-                      : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800'
+                    viewMode === 'system'
+                      ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white')
+                      : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
                   }`}
                 >
-                  <Settings size={16} />
-                  System
+                  <Eye size={16} />
+                  Accessibility
                 </button>
-                <button 
+                <button
                   onClick={() => setViewMode('image')}
                   className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
-                    viewMode === 'image' 
-                      ? (isDarkMode ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-white') 
-                      : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800'
+                    viewMode === 'image'
+                      ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white')
+                      : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
                   }`}
                 >
                   <Upload size={16} />
                   Image
                 </button>
+                <button
+                  onClick={() => setViewMode('ishihara')}
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
+                    viewMode === 'ishihara'
+                      ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white')
+                      : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
+                  }`}
+                >
+                  <ScanEye size={16} />
+                  Plate Test
+                </button>
               </div>
-              <button 
-                onClick={() => setIsExportModalOpen(true)}
-                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all border border-zinc-800 ${
-                  isDarkMode 
-                    ? 'bg-transparent text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100' 
-                    : 'bg-transparent text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'
-                } active:bg-zinc-900 active:text-white dark:active:bg-zinc-100 dark:active:text-zinc-900`}
-              >
-                <Download size={16} />
-                Export
-              </button>
             </div>
 
-            <div className={`${isDarkMode ? 'bg-[#111111]' : 'bg-white'} px-5 py-3 rounded-none border border-zinc-800 retro-shadow flex items-center gap-3`}>
-              <div 
-                className="w-3 h-3 rounded-none animate-pulse shadow-none" 
+            <div className={`${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} px-4 py-2.5 rounded-none border border-zinc-800 retro-shadow flex items-center gap-3`}>
+              <div
+                className="w-4 h-4 rounded-none shrink-0 border border-black/20"
                 style={{ backgroundColor: baseColor }}
               />
-              <div className="flex flex-col">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">Active Theory Mode</span>
-                <span className={`text-xs sm:text-sm font-black ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'} uppercase tracking-[0.15em] leading-none`}>
-                  {rule.replace('-', ' ')}
+              <div className="flex flex-col min-w-0">
+                <span className={`text-[9px] font-bold uppercase tracking-widest leading-none mb-0.5 ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>Theory Mode</span>
+                <span className={`text-xs font-black ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'} uppercase tracking-[0.12em] leading-none truncate`}>
+                  {rule.replace(/-/g, ' ')}
                 </span>
+              </div>
+              <div className={`ml-auto text-[10px] font-mono font-bold ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'} shrink-0`}>
+                {baseColor.toUpperCase()}
               </div>
             </div>
           </div>
@@ -412,25 +295,52 @@ export default function App() {
           <div className="flex-1 flex flex-col min-h-0">
             <AnimatePresence mode="wait">
               {viewMode === 'palette' ? (
-                <motion.div 
+                <motion.div
                   key="palette-view"
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className={`grid grid-cols-5 ${rule === 'design-system' ? 'grid-rows-2 gap-y-8 sm:gap-y-12' : ''} gap-x-2 sm:gap-x-4 gap-y-4 flex-1 w-full`}
+                  className="flex flex-col gap-6 flex-1"
                 >
-                  {palette.map((color, i) => (
-                    <ColorSwatch
-                      key={`${i}-${color.hex}`}
-                      color={color}
-                      index={i}
-                      isDarkMode={isDarkMode}
-                      onUpdate={updateColor}
-                      onCopy={handleCopy}
-                      isCopied={copiedIndex === i}
-                      onGenerateShades={generateShades}
-                    />
-                  ))}
+                  <div className={`grid grid-cols-5 ${rule === 'design-system' ? 'grid-rows-2 gap-y-8 sm:gap-y-12' : ''} gap-x-2 sm:gap-x-4 gap-y-4 flex-1`}>
+                    {palette.map((color, i) => (
+                      <ColorSwatch
+                        key={`${i}-${color.hex}`}
+                        color={color}
+                        index={i}
+                        isDarkMode={isDarkMode}
+                        onUpdate={updateColor}
+                        onCopy={handleCopy}
+                        isCopied={copiedIndex === i}
+                        onGenerateShades={generateShades}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Colorblind check strip */}
+                  <div className={`${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} border border-zinc-800 p-4 space-y-3`}>
+                    <p className={`text-xs font-black uppercase tracking-widest ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>Colorblind Check</p>
+                    {CB_TYPES.map(type => {
+                      const conflicts = paletteConflicts(palette, type);
+                      const ok = conflicts.length === 0;
+                      return (
+                        <div key={type} className="flex items-center gap-3">
+                          <span className={`text-[11px] font-bold uppercase tracking-wider w-28 shrink-0 ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>
+                            {CB_LABELS[type]}
+                          </span>
+                          <div className="flex h-5 flex-1 border border-zinc-800 overflow-hidden">
+                            {palette.map((c, i) => (
+                              <div key={i} className="flex-1 h-full"
+                                style={{ backgroundColor: simulateColorBlind(c.hex, type) }} />
+                            ))}
+                          </div>
+                          <span className={`text-xs font-black uppercase shrink-0 flex items-center gap-1 w-20 ${ok ? (isDarkMode ? 'text-green-400' : 'text-green-700') : (isDarkMode ? 'text-amber-300' : 'text-amber-800')}`}>
+                            {ok ? '✓ Good' : `⚠ ${conflicts.length} conflict${conflicts.length > 1 ? 's' : ''}`}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </motion.div>
               ) : viewMode === 'preview' ? (
                 <motion.div
@@ -441,8 +351,8 @@ export default function App() {
                   className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1"
                 >
                   {/* ... Landing Page Mockup ... */}
-                  <div className={`${isDarkMode ? 'bg-[#111111]' : 'bg-white'} rounded-none border border-zinc-800 retro-shadow overflow-hidden flex flex-col`}>
-                    <div className={`p-4 border-b border-zinc-800 flex items-center gap-2 ${isDarkMode ? 'bg-zinc-900/50' : 'bg-gray-50/50'}`}>
+                  <div className={`${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} rounded-none border border-zinc-800 retro-shadow overflow-hidden flex flex-col`}>
+                    <div className={`p-4 border-b border-zinc-800 flex items-center gap-2 ${isDarkMode ? 'bg-[#1E1A15]/80' : 'bg-stone-200/50'}`}>
                       <Monitor size={14} className="text-gray-400" />
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Landing Page Hero</span>
                     </div>
@@ -473,19 +383,19 @@ export default function App() {
                   </div>
 
                   {/* Mobile App Mockup */}
-                  <div className={`${isDarkMode ? 'bg-[#111111]' : 'bg-white'} rounded-none border border-zinc-800 retro-shadow overflow-hidden flex flex-col`}>
-                    <div className={`p-4 border-b border-zinc-800 flex items-center gap-2 ${isDarkMode ? 'bg-zinc-900/50' : 'bg-gray-50/50'}`}>
+                  <div className={`${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} rounded-none border border-zinc-800 retro-shadow overflow-hidden flex flex-col`}>
+                    <div className={`p-4 border-b border-zinc-800 flex items-center gap-2 ${isDarkMode ? 'bg-[#1E1A15]/80' : 'bg-stone-200/50'}`}>
                       <Smartphone size={14} className="text-gray-400" />
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mobile Dashboard</span>
                     </div>
-                    <div className={`p-6 space-y-6 flex-1 ${isDarkMode ? 'bg-[#0a0a0a]' : 'bg-gray-50'}`}>
+                    <div className={`p-6 space-y-6 flex-1 ${isDarkMode ? 'bg-[#1A1612]' : 'bg-stone-100'}`}>
                       <div className="flex items-center justify-between">
                         <div className={`w-10 h-10 rounded-none ${isDarkMode ? 'bg-zinc-800' : 'bg-gray-200'} border border-zinc-800`} />
-                        <div className={`w-8 h-8 rounded-none ${isDarkMode ? 'bg-[#111111]' : 'bg-white'} shadow-none border border-zinc-800 flex items-center justify-center`}>
+                        <div className={`w-8 h-8 rounded-none ${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} shadow-none border border-zinc-800 flex items-center justify-center`}>
                           <RefreshCw size={14} style={{ color: getColorByRole('Primary') }} />
                         </div>
                       </div>
-                      <div className={`${isDarkMode ? 'bg-[#111111]' : 'bg-white'} p-6 rounded-none shadow-none space-y-4 border border-zinc-800`}>
+                      <div className={`${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} p-6 rounded-none shadow-none space-y-4 border border-zinc-800`}>
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-gray-400 uppercase">Total Balance</span>
                           <CreditCard size={16} style={{ color: getColorByRole('Secondary') }} />
@@ -511,13 +421,13 @@ export default function App() {
                   </div>
 
                   {/* Card Mockup */}
-                  <div className={`${isDarkMode ? 'bg-[#111111]' : 'bg-white'} rounded-none border border-zinc-800 retro-shadow overflow-hidden flex flex-col md:col-span-2`}>
-                    <div className={`p-4 border-b border-zinc-800 flex items-center gap-2 ${isDarkMode ? 'bg-zinc-900/50' : 'bg-gray-50/50'}`}>
+                  <div className={`${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} rounded-none border border-zinc-800 retro-shadow overflow-hidden flex flex-col md:col-span-2`}>
+                    <div className={`p-4 border-b border-zinc-800 flex items-center gap-2 ${isDarkMode ? 'bg-[#1E1A15]/80' : 'bg-stone-200/50'}`}>
                       <Layout size={14} className="text-gray-400" />
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Component Preview</span>
                     </div>
                     <div className="p-6 sm:p-8 grid grid-cols-1 sm:grid-cols-3 gap-6">
-                      <div className={`p-5 border border-zinc-800 ${isDarkMode ? 'bg-[#0a0a0a]' : 'bg-gray-50'} flex flex-col h-full`}>
+                      <div className={`p-5 border border-zinc-800 ${isDarkMode ? 'bg-[#1A1612]' : 'bg-stone-100'} flex flex-col h-full`}>
                         <div className="aspect-video rounded-none shadow-none border border-zinc-800 mb-4" style={{ backgroundColor: getColorByRole('Secondary') }} />
                         <div className="space-y-2 mb-6 flex-1">
                           <div className="h-4 w-3/4 rounded-none" style={{ backgroundColor: getColorByRole('Primary') + '20' }} />
@@ -529,7 +439,7 @@ export default function App() {
                         </button>
                       </div>
 
-                      <div className={`${isDarkMode ? 'bg-[#0a0a0a]' : 'bg-gray-50'} p-5 border border-zinc-800 flex flex-col items-center text-center h-full`}>
+                      <div className={`${isDarkMode ? 'bg-[#1A1612]' : 'bg-stone-100'} p-5 border border-zinc-800 flex flex-col items-center text-center h-full`}>
                         <div className="w-12 h-12 rounded-none flex items-center justify-center border border-zinc-800 mb-4 mt-2" style={{ backgroundColor: getColorByRole('Background') + '20' }}>
                           <Sparkles size={24} style={{ color: getColorByRole('Background') }} />
                         </div>
@@ -542,7 +452,7 @@ export default function App() {
                         </button>
                       </div>
 
-                      <div className={`p-5 border border-zinc-800 ${isDarkMode ? 'bg-[#0a0a0a]' : 'bg-gray-50'} flex flex-col h-full space-y-4`}>
+                      <div className={`p-5 border border-zinc-800 ${isDarkMode ? 'bg-[#1A1612]' : 'bg-stone-100'} flex flex-col h-full space-y-4`}>
                         <div className="flex items-center justify-between">
                           <span className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Project Status</span>
                           <div className="px-2 py-0.5 text-[8px] font-bold uppercase tracking-tighter text-white" style={{ backgroundColor: getColorByRole('Accent') }}>Active</div>
@@ -600,7 +510,7 @@ export default function App() {
                   exit={{ opacity: 0, x: -20 }}
                   className="flex-1"
                 >
-                  <AccessibilityView palette={palette} isDarkMode={isDarkMode} />
+                  <AccessibilityView palette={palette} isDarkMode={isDarkMode} onUpdate={updateColor} />
                 </motion.div>
               ) : viewMode === 'image' ? (
                 <motion.div
@@ -610,13 +520,22 @@ export default function App() {
                   exit={{ opacity: 0, x: -20 }}
                   className="flex-1"
                 >
-                  <ImageColorPicker 
-                    isDarkMode={isDarkMode} 
+                  <ImageColorPicker
+                    isDarkMode={isDarkMode}
                     onColorsExtracted={(colors) => {
                       setBaseColor(colors[0]);
-                      // Optionally update the whole palette if needed
                     }}
                   />
+                </motion.div>
+              ) : viewMode === 'ishihara' ? (
+                <motion.div
+                  key="ishihara-view"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="flex-1"
+                >
+                  <IshiharaDemo palette={palette} isDarkMode={isDarkMode} />
                 </motion.div>
               ) : null}
             </AnimatePresence>
@@ -625,12 +544,27 @@ export default function App() {
 
         {/* Sidebar Controls */}
         <aside className="lg:col-span-4 flex flex-col">
-          <section className={`${isDarkMode ? 'bg-[#111111]' : 'bg-white'} p-6 rounded-none border border-zinc-800 retro-shadow space-y-6 h-full flex flex-col`}>
+          <section className={`${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} p-6 rounded-none border border-zinc-800 retro-shadow space-y-6 h-full flex flex-col relative overflow-hidden`}>
+            {/* Bauhaus dot grid decoration */}
+            <div className="absolute top-0 right-0 w-20 h-20 dot-grid-decoration pointer-events-none" style={{ color: isDarkMode ? '#F5F1E8' : '#1A1A1A', opacity: 0.08 }} aria-hidden="true" />
             <div className="space-y-2 flex-none">
-              <label className={`text-xs font-bold ${isDarkMode ? 'text-gray-400' : 'text-gray-400'} uppercase tracking-widest flex items-center gap-2`}>
-                <Zap size={14} className={isDarkMode ? 'text-zinc-100' : 'text-zinc-900'} />
-                Base Color
-              </label>
+              <div className="flex items-center justify-between">
+                <label className={`text-xs font-bold uppercase tracking-widest flex items-center gap-2 ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>
+                  <Zap size={14} className="text-[#2855A8]" />
+                  Base Color
+                </label>
+                <button
+                  onClick={() => setIsExportModalOpen(true)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-none text-[10px] font-bold uppercase tracking-widest border border-zinc-800 transition-all ${
+                    isDarkMode
+                      ? 'bg-[#2A241E] text-stone-300 hover:bg-[#2855A8] hover:text-white hover:border-[#2855A8]'
+                      : 'bg-stone-100 text-[#2C2418] hover:bg-[#2855A8] hover:text-white hover:border-[#2855A8]'
+                  }`}
+                >
+                  <Download size={11} />
+                  Export
+                </button>
+              </div>
               <div className="flex gap-2">
                 <div className="relative w-12 h-12 shrink-0 border border-zinc-800 overflow-hidden">
                   <input 
@@ -644,22 +578,22 @@ export default function App() {
                   type="text" 
                   value={baseColor.toUpperCase()}
                   onChange={(e) => setBaseColor(e.target.value)}
-                  className={`w-32 px-3 rounded-none border border-zinc-800 font-mono text-base focus:ring-2 focus:ring-zinc-900 outline-none ${isDarkMode ? 'bg-[#1a1a1a] text-white' : 'bg-white text-zinc-900'}`}
+                  className={`w-32 px-3 rounded-none border border-zinc-800 font-mono text-base focus:ring-2 focus:ring-[#2855A8] outline-none ${isDarkMode ? 'bg-[#1E1A15] text-[#F5F1E8]' : 'bg-[#F5F1E8] text-[#1A1A1A]'}`}
                 />
               </div>
             </div>
 
             <div className="space-y-3 flex-1 flex flex-col">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest flex-none">Theory Rule</label>
+              <label className={`text-xs font-bold uppercase tracking-widest flex-none ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>Theory Rule</label>
               <div className={`grid ${viewMode === 'palette' ? 'grid-cols-2' : 'grid-cols-1'} gap-2 flex-1 content-start`}>
                 {RULES.map((r) => (
                   <button
                     key={r.id}
                     onClick={() => setRule(r.id)}
                     className={`text-left p-3 rounded-none border transition-all flex flex-col justify-center min-h-[80px] ${
-                      rule === r.id 
-                        ? (isDarkMode ? 'border-zinc-100 bg-[#222222] ring-1 ring-zinc-100' : 'border-zinc-900 bg-zinc-100 ring-1 ring-zinc-900') 
-                        : (isDarkMode ? 'border-zinc-800 hover:border-zinc-600 bg-[#1a1a1a]' : 'border-zinc-800 hover:border-zinc-600 bg-gray-50/30')
+                      rule === r.id
+                        ? (isDarkMode ? 'border-[#F5F1E8] bg-[#2A241E] ring-1 ring-[#F5F1E8]' : 'border-[#2855A8] bg-[#EEF2FF] ring-1 ring-[#2855A8]')
+                        : (isDarkMode ? 'border-zinc-800 hover:border-zinc-600 bg-[#1E1A15]' : 'border-zinc-800 hover:border-zinc-600 bg-stone-100/50')
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -672,13 +606,13 @@ export default function App() {
                       <div className={`text-[11px] sm:text-base leading-tight transition-all ${
                         rule === r.id 
                           ? (isDarkMode ? 'font-black text-zinc-100' : 'font-black text-zinc-900') 
-                          : (isDarkMode ? 'font-semibold text-gray-400' : 'font-semibold text-gray-700')
+                          : (isDarkMode ? 'font-bold text-stone-300' : 'font-bold text-[#2C2418]')
                       }`}>{r.name}</div>
                     </div>
-                    <div className={`text-[9px] sm:text-[10px] mt-1 leading-tight line-clamp-2 transition-colors ${
-                      rule === r.id 
-                        ? (isDarkMode ? 'text-zinc-400 font-medium' : 'text-zinc-600 font-medium') 
-                        : 'text-gray-500'
+                    <div className={`text-[10px] mt-1 leading-tight line-clamp-2 transition-colors ${
+                      rule === r.id
+                        ? (isDarkMode ? 'text-stone-300 font-semibold' : 'text-[#4A3C34] font-semibold')
+                        : (isDarkMode ? 'text-stone-400 font-medium' : 'text-[#4A3C34] font-medium')
                     }`}>{r.description}</div>
                   </button>
                 ))}
@@ -687,9 +621,9 @@ export default function App() {
                 <button
                   onClick={handleRandomize}
                   className={`text-left p-3 rounded-none border transition-all flex flex-col justify-center min-h-[80px] group ${
-                    isDarkMode 
-                      ? 'border-zinc-800 hover:border-zinc-100 bg-[#1a1a1a] hover:bg-[#222222]' 
-                      : 'border-zinc-800 hover:border-zinc-900 bg-gray-50/30 hover:bg-zinc-100'
+                    isDarkMode
+                      ? 'border-zinc-800 hover:border-[#F5F1E8] bg-[#1E1A15] hover:bg-[#2A241E]'
+                      : 'border-zinc-800 hover:border-[#2855A8] bg-stone-100/50 hover:bg-[#EEF2FF]'
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -698,7 +632,7 @@ export default function App() {
                       isDarkMode ? 'text-zinc-100' : 'text-zinc-900'
                     }`}>Randomize</div>
                   </div>
-                  <div className="text-[9px] sm:text-[10px] mt-1 leading-tight text-gray-500">
+                  <div className={`text-[10px] mt-1 leading-tight font-medium ${isDarkMode ? 'text-stone-400' : 'text-[#4A3C34]'}`}>
                     Generate a completely random base color and rule.
                   </div>
                 </button>
@@ -716,124 +650,8 @@ export default function App() {
         isDarkMode={isDarkMode} 
       />
 
-      <AnimatePresence>
-        {isAgentModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsAgentModalOpen(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className={`relative w-full max-w-4xl ${isDarkMode ? 'bg-[#111111]' : 'bg-white'} rounded-none retro-shadow border border-zinc-800 overflow-hidden flex flex-col max-h-[90vh]`}
-            >
-              <div className={`p-6 border-b border-zinc-800 flex items-center justify-between ${isDarkMode ? 'bg-[#1a1a1a]' : 'bg-gray-50/50'}`}>
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 ${isDarkMode ? 'bg-zinc-800 text-white' : 'bg-zinc-100 text-zinc-900'} rounded-none border border-zinc-800 flex items-center justify-center`}>
-                    <Settings2 size={20} />
-                  </div>
-                  <div>
-                    <h2 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Agent Configuration</h2>
-                    <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Customize AI behavior and model parameters</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setIsAgentModalOpen(false)}
-                  className={`p-2 ${isDarkMode ? 'hover:bg-zinc-800 text-white' : 'hover:bg-gray-200 text-zinc-900'} rounded-none transition-colors`}
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                {agents.map((agent) => (
-                  <div key={agent.id} className={`space-y-6 p-6 rounded-none border border-zinc-800 ${isDarkMode ? 'bg-[#1a1a1a]' : 'bg-gray-50/30'}`}>
-                    <div className="flex items-center justify-between">
-                      <h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{agent.name}</h3>
-                      <span className={`px-2 py-1 ${isDarkMode ? 'bg-zinc-800 text-white' : 'bg-zinc-100 text-zinc-900'} text-[10px] font-bold rounded-none border border-zinc-800 uppercase tracking-wider`}>
-                        {agent.model}
-                      </span>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">System Instructions</label>
-                        <textarea 
-                          value={agent.systemInstruction}
-                          onChange={(e) => updateAgent(agent.id, { systemInstruction: e.target.value })}
-                          className={`w-full text-sm p-3 rounded-none border border-zinc-800 focus:ring-2 focus:ring-zinc-900 outline-none min-h-[120px] ${isDarkMode ? 'bg-[#222222] text-white' : 'bg-white text-zinc-900'}`}
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Model</label>
-                          <select 
-                            value={agent.model}
-                            onChange={(e) => updateAgent(agent.id, { model: e.target.value })}
-                            className={`w-full text-sm p-2 rounded-none border border-zinc-800 ${isDarkMode ? 'bg-[#222222] text-white' : 'bg-white text-zinc-900'}`}
-                          >
-                            <option value="gemini-3-flash-preview">Gemini 3 Flash</option>
-                            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
-                            <option value="gemini-3.1-flash-lite-preview">Gemini Flash Lite</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Temperature ({agent.temperature})</label>
-                          <input 
-                            type="range" min="0" max="1" step="0.1"
-                            value={agent.temperature}
-                            onChange={(e) => updateAgent(agent.id, { temperature: parseFloat(e.target.value) })}
-                            className="w-full accent-zinc-900"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Top P ({agent.topP})</label>
-                          <input 
-                            type="range" min="0" max="1" step="0.05"
-                            value={agent.topP}
-                            onChange={(e) => updateAgent(agent.id, { topP: parseFloat(e.target.value) })}
-                            className="w-full accent-zinc-900"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Top K ({agent.topK})</label>
-                          <input 
-                            type="number"
-                            value={agent.topK}
-                            onChange={(e) => updateAgent(agent.id, { topK: parseInt(e.target.value) })}
-                            className={`w-full text-sm p-2 rounded-none border border-zinc-800 ${isDarkMode ? 'bg-[#222222] text-white' : 'bg-white text-zinc-900'}`}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className={`p-6 border-t border-zinc-800 ${isDarkMode ? 'bg-[#1a1a1a]' : 'bg-gray-50/50'} flex justify-end`}>
-                <button 
-                  onClick={() => setIsAgentModalOpen(false)}
-                  className={`${isDarkMode ? 'bg-zinc-100 text-zinc-900 hover:bg-white' : 'bg-zinc-900 text-white hover:bg-black'} px-8 py-3 rounded-none font-bold transition-all retro-shadow border border-zinc-800`}
-                >
-                  Save Configuration
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
       {/* Footer */}
-      <footer className={`max-w-7xl mx-auto px-8 py-12 border-t border-zinc-800 mt-12 flex flex-col md:flex-row items-center justify-between gap-6 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+      <footer className={`max-w-7xl mx-auto px-8 py-12 border-t border-zinc-800 mt-12 flex flex-col md:flex-row items-center justify-between gap-6 ${isDarkMode ? 'text-stone-400' : 'text-[#2C2418]'}`}>
         <div className="flex items-center gap-2 text-sm">
           <Info size={16} />
           <span>Colors generated using standard color theory algorithms and Gemini AI.</span>
