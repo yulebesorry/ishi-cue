@@ -387,14 +387,14 @@ export default function App() {
 
       {/* Main Content */}
       <main
-        className={`max-w-7xl mx-auto p-4 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-stretch`}
+        className={`max-w-[1800px] mx-auto p-4 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-stretch`}
         style={assistActive ? { filter: 'url(#icue-assist)' } : undefined}
       >
         {/* Palette Display */}
         <section className="lg:col-span-8 flex flex-col gap-6">
           <div className="space-y-3 flex-none">
             <div className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between ${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} p-2 rounded-none border border-zinc-800 retro-shadow gap-3`}>
-              <div className="grid grid-cols-2 sm:flex gap-1 w-full sm:w-auto">
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1 w-full">
                 <button 
                   onClick={() => setViewMode('palette')}
                   className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
@@ -887,7 +887,7 @@ export default function App() {
       />
 
       {/* Footer */}
-      <footer className={`max-w-7xl mx-auto px-8 py-12 border-t border-zinc-800 mt-12 flex flex-col md:flex-row items-center justify-between gap-6 ${isDarkMode ? 'text-stone-400' : 'text-[#2C2418]'}`}>
+      <footer className={`max-w-[1800px] mx-auto px-8 py-12 border-t border-zinc-800 mt-12 flex flex-col md:flex-row items-center justify-between gap-6 ${isDarkMode ? 'text-stone-400' : 'text-[#2C2418]'}`}>
         <div className="flex items-center gap-2 text-sm">
           <Info size={16} />
           <span>Colors generated using standard color theory algorithms and Gemini AI.</span>
