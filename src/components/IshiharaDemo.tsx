@@ -1,8 +1,9 @@
-import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
-import Color from 'color';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { PaletteColor } from '../types';
-import { ColorBlindType, simulateColorBlind } from '../colorUtils';
+import { ColorBlindType } from '../colorUtils';
+import { PLATE_SIZE, buildDots, buildTextMask, drawPlate, figureVisible } from '../ishihara';
+import { useActiveCVDProfile } from '../profile';
 import { ScanEye, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface IshiharaDemoProps {
@@ -10,16 +11,7 @@ interface IshiharaDemoProps {
   isDarkMode: boolean;
 }
 
-interface Dot {
-  x: number;
-  y: number;
-  r: number;
-  color: string;
-}
-
-const PLATE_SIZE = 200;
-const DOT_COUNT  = 520;
-const DIGITS     = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
 const CVD_VIEWS: { type: ColorBlindType | 'normal'; label: string }[] = [
   { type: 'normal',       label: 'Normal Vision'  },
@@ -35,144 +27,17 @@ const SEVERITY_PRESETS = [
   { label: 'Full',     value: 1.0  },
 ];
 
-// Deterministic LCG seeded by a number
-function makeLCG(seed: number) {
-  let s = seed >>> 0;
-  return () => {
-    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
-    return s / 0xffffffff;
-  };
-}
-
-function hashStr(str: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
-}
-
-// Render text to an offscreen canvas and return a flat boolean mask
-function buildTextMask(text: string, size: number): boolean[] {
-  const c = document.createElement('canvas');
-  c.width = size; c.height = size;
-  const ctx = c.getContext('2d')!;
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, size, size);
-  ctx.fillStyle = '#fff';
-  const fs = text.length > 1 ? size * 0.46 : size * 0.66;
-  ctx.font = `900 ${fs}px Arial Black, Arial, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, size / 2, size / 2);
-  const d = ctx.getImageData(0, 0, size, size).data;
-  const mask = new Array<boolean>(size * size);
-  for (let i = 0; i < size * size; i++) mask[i] = d[i * 4] > 128;
-  return mask;
-}
-
-function inMask(x: number, y: number, mask: boolean[], size: number): boolean {
-  const px = Math.round(x), py = Math.round(y);
-  if (px < 0 || px >= size || py < 0 || py >= size) return false;
-  return mask[py * size + px];
-}
-
-// Generate stable random dot positions for a given digit
-function buildDots(digit: string, seed: number, figureHex: string, bgHex: string): Dot[] {
-  const rng     = makeLCG(hashStr(digit + '|' + seed));
-  const rngC    = makeLCG(hashStr(digit + '|' + seed + 'color'));
-  const mask    = buildTextMask(digit, PLATE_SIZE);
-  const center  = PLATE_SIZE / 2;
-  const outerR  = PLATE_SIZE / 2 - 3;
-  const dots: Dot[] = [];
-
-  for (let attempt = 0; attempt < DOT_COUNT * 25 && dots.length < DOT_COUNT; attempt++) {
-    const angle = rng() * Math.PI * 2;
-    const dist  = Math.sqrt(rng()) * outerR;
-    const x     = center + dist * Math.cos(angle);
-    const y     = center + dist * Math.sin(angle);
-    const r     = 3.5 + rng() * 3.5;
-    if (dots.some(d => Math.hypot(d.x - x, d.y - y) < d.r + r + 1.5)) continue;
-    const isFig = inMask(x, y, mask, PLATE_SIZE);
-    const base  = Color(isFig ? figureHex : bgHex);
-    const hue   = (base.hue() + (rngC() - 0.5) * 32 + 360) % 360;
-    const sat   = Math.min(100, Math.max(8,  base.saturationv() + (rngC() - 0.5) * 28));
-    const val   = Math.min(96,  Math.max(18, base.value()       + (rngC() - 0.5) * 22));
-    dots.push({ x, y, r, color: Color.hsv(hue, sat, val).hex() });
-  }
-  return dots;
-}
-
-function drawPlate(
-  canvas: HTMLCanvasElement | null,
-  dots: Dot[],
-  cvdType: ColorBlindType | 'normal',
-  severity: number,
-  isDarkMode: boolean,
-) {
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-  const size   = PLATE_SIZE;
-  const center = size / 2;
-  const r      = size / 2 - 2;
-
-  ctx.clearRect(0, 0, size, size);
-
-  // Outer circle background
-  ctx.beginPath();
-  ctx.arc(center, center, r, 0, Math.PI * 2);
-  ctx.fillStyle = isDarkMode ? '#1c1c1c' : '#efefef';
-  ctx.fill();
-
-  // Clip to circle
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(center, center, r, 0, Math.PI * 2);
-  ctx.clip();
-
-  for (const dot of dots) {
-    const hex = cvdType === 'normal'
-      ? dot.color
-      : simulateColorBlind(dot.color, cvdType, severity);
-    ctx.beginPath();
-    ctx.arc(dot.x, dot.y, dot.r, 0, Math.PI * 2);
-    ctx.fillStyle = hex;
-    ctx.fill();
-  }
-
-  ctx.restore();
-
-  // Outer ring
-  ctx.beginPath();
-  ctx.arc(center, center, r, 0, Math.PI * 2);
-  ctx.strokeStyle = isDarkMode ? '#333' : '#d0d0d0';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-}
-
-// Detect if the figure is still visible by comparing avg simulated color of figure vs bg dots
-function figureVisible(dots: Dot[], mask: boolean[], cvdType: ColorBlindType | 'normal', severity: number): boolean {
-  let fr = 0, fg = 0, fb = 0, fc = 0;
-  let br = 0, bg = 0, bb = 0, bc = 0;
-  for (const dot of dots) {
-    const hex = cvdType === 'normal' ? dot.color : simulateColorBlind(dot.color, cvdType, severity);
-    const c = Color(hex);
-    const fig = inMask(dot.x, dot.y, mask, PLATE_SIZE);
-    if (fig) { fr += c.red(); fg += c.green(); fb += c.blue(); fc++; }
-    else      { br += c.red(); bg += c.green(); bb += c.blue(); bc++; }
-  }
-  if (!fc || !bc) return true;
-  const dr = fr/fc - br/bc, dg = fg/fc - bg/bc, db = fb/fc - bb/bc;
-  return Math.sqrt(dr*dr + dg*dg + db*db) > 22;
-}
-
 export const IshiharaDemo: React.FC<IshiharaDemoProps> = ({ palette, isDarkMode }) => {
+  const activeProfile = useActiveCVDProfile();
   const [digit,     setDigit]     = useState('8');
   const [figureIdx, setFigureIdx] = useState(0);
   const [bgIdx,     setBgIdx]     = useState(Math.min(1, palette.length - 1));
-  const [severity,  setSeverity]  = useState(1.0);
+  const [severity,  setSeverity]  = useState(activeProfile?.severity ?? 1.0);
+
+  // Adopt the profile live when it changes (e.g. header vision-mode picker)
+  useEffect(() => {
+    if (activeProfile) setSeverity(activeProfile.severity);
+  }, [activeProfile?.severity]);
   const [seed,      setSeed]      = useState(0);
 
   const canvasRefs = CVD_VIEWS.map(() => useRef<HTMLCanvasElement>(null));

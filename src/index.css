@@ -31,6 +31,41 @@
   }
 }
 
+/*
+ * High Contrast mode — white paper + navy ink (light), true black + white
+ * (dark). Toggled by adding .high-contrast to <html>. Components use
+ * arbitrary-value utilities for the cream theme, so we remap those exact
+ * classes here; !important keeps the remap authoritative regardless of how
+ * Tailwind layers its utilities. Contrast: ink/white 17.4:1, navy/white
+ * 13.6:1 (AAA), and both survive all four CVD simulations unchanged.
+ */
+/* Color transitions can freeze mid-flight when the target value changes via
+   a root class swap (stuck CSSTransition at t=0 pins the old color above the
+   cascade) — switch instantly in high-contrast mode instead. */
+.high-contrast .transition-colors,
+.high-contrast .transition-all {
+  transition: none !important;
+}
+.high-contrast .bg-\[\#EDE8DC\] { background-color: #ffffff !important; }
+.high-contrast .bg-\[\#F5F1E8\] { background-color: #ffffff !important; }
+.high-contrast .border-\[\#F5F1E8\] { border-color: #ffffff !important; }
+.high-contrast .ring-\[\#F5F1E8\] { --tw-ring-color: #ffffff !important; }
+.high-contrast .text-\[\#2C2418\] { color: #1b2a5e !important; }
+.high-contrast .text-\[\#4A3C34\] { color: #1b2a5e !important; }
+.high-contrast .bg-\[\#2855A8\] { background-color: #1b2a5e !important; }
+.high-contrast .text-\[\#2855A8\] { color: #1b2a5e !important; }
+.high-contrast .border-\[\#2855A8\] { border-color: #1b2a5e !important; }
+.high-contrast .ring-\[\#2855A8\] { --tw-ring-color: #1b2a5e !important; }
+.high-contrast .hover\:bg-\[\#2855A8\]:hover { background-color: #1b2a5e !important; }
+.high-contrast .bg-\[\#1e4285\] { background-color: #14204a !important; }
+.high-contrast .hover\:bg-\[\#1e4285\]:hover { background-color: #14204a !important; }
+/* dark mode: lift to true black for maximum contrast */
+.high-contrast .bg-\[\#1A1612\] { background-color: #000000 !important; }
+.high-contrast .bg-\[\#221E18\] { background-color: #0a0a0a !important; }
+.high-contrast .bg-\[\#1E1A15\] { background-color: #050505 !important; }
+.high-contrast .bg-\[\#2A241E\] { background-color: #141414 !important; }
+.high-contrast .text-\[\#F5F1E8\] { color: #ffffff !important; }
+
 ::-webkit-scrollbar {
   width: 8px;
 }

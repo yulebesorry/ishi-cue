@@ -23,6 +23,8 @@ import {
   applyEnChromaFilter,
   ENCHROMA_HELPS,
 } from '../colorUtils';
+import { useActiveCVDProfile, useVisionProfile } from '../profile';
+import { PatternOverlay } from '../patterns';
 
 interface AccessibilityViewProps {
   palette: PaletteColor[];
@@ -50,9 +52,11 @@ export const AccessibilityView: React.FC<AccessibilityViewProps> = ({ palette, i
   const getInitialColor = (role: string, fallbackIndex: number) =>
     palette.find(c => c.role === role)?.hex || palette[fallbackIndex]?.hex || (fallbackIndex === 0 ? '#000000' : '#FFFFFF');
 
+  const activeProfile = useActiveCVDProfile();
+  const { patternsEnabled } = useVisionProfile();
   const [textColor, setTextColor] = useState(getInitialColor('Primary', 0));
   const [bgColor, setBgColor]     = useState(getInitialColor('Background', palette.length - 1));
-  const [severity,       setSeverity]       = useState(1.0);
+  const [severity,       setSeverity]       = useState(activeProfile?.severity ?? 1.0);
   const [filterStrength, setFilterStrength] = useState(1.0);
   const [showFilter,     setShowFilter]     = useState(false);
 
@@ -60,6 +64,11 @@ export const AccessibilityView: React.FC<AccessibilityViewProps> = ({ palette, i
     setTextColor(getInitialColor('Primary', 0));
     setBgColor(getInitialColor('Background', palette.length - 1));
   }, [palette]);
+
+  // Adopt the profile live when it changes (e.g. header vision-mode picker)
+  useEffect(() => {
+    if (activeProfile) setSeverity(activeProfile.severity);
+  }, [activeProfile?.severity]);
 
   const contrastInfo = useMemo(() => {
     try {
@@ -131,10 +140,12 @@ export const AccessibilityView: React.FC<AccessibilityViewProps> = ({ palette, i
           <div className="space-y-2">
             <label className={`text-[10px] font-bold uppercase tracking-widest ${muted}`}>Text Color</label>
             <div className="flex gap-2">
-              <input type="color" value={textColor} onChange={e => setTextColor(e.target.value)}
-                className="w-10 h-10 border border-zinc-800 p-0 cursor-pointer rounded-none" />
+              <div className="relative w-12 h-12 shrink-0 border border-zinc-800 overflow-hidden">
+                <input type="color" value={textColor} onChange={e => setTextColor(e.target.value)}
+                  className="absolute inset-[-10px] w-[calc(100%+20px)] h-[calc(100%+20px)] cursor-pointer" />
+              </div>
               <input type="text" value={textColor.toUpperCase()} onChange={e => setTextColor(e.target.value)}
-                className={`flex-1 px-3 py-2 text-xs font-mono border border-zinc-800 rounded-none ${isDarkMode ? 'bg-zinc-900 text-white' : 'bg-gray-50 text-black'}`} />
+                className={`flex-1 min-w-0 px-3 rounded-none border border-zinc-800 font-mono text-base focus:ring-2 focus:ring-[#2855A8] outline-none ${isDarkMode ? 'bg-[#1E1A15] text-[#F5F1E8]' : 'bg-[#F5F1E8] text-[#1A1A1A]'}`} />
             </div>
             <div className="flex flex-wrap gap-1 pt-1">
               {palette.map((c, i) => (
@@ -149,10 +160,12 @@ export const AccessibilityView: React.FC<AccessibilityViewProps> = ({ palette, i
           <div className="space-y-2">
             <label className={`text-[10px] font-bold uppercase tracking-widest ${muted}`}>Background</label>
             <div className="flex gap-2">
-              <input type="color" value={bgColor} onChange={e => setBgColor(e.target.value)}
-                className="w-10 h-10 border border-zinc-800 p-0 cursor-pointer rounded-none" />
+              <div className="relative w-12 h-12 shrink-0 border border-zinc-800 overflow-hidden">
+                <input type="color" value={bgColor} onChange={e => setBgColor(e.target.value)}
+                  className="absolute inset-[-10px] w-[calc(100%+20px)] h-[calc(100%+20px)] cursor-pointer" />
+              </div>
               <input type="text" value={bgColor.toUpperCase()} onChange={e => setBgColor(e.target.value)}
-                className={`flex-1 px-3 py-2 text-xs font-mono border border-zinc-800 rounded-none ${isDarkMode ? 'bg-zinc-900 text-white' : 'bg-gray-50 text-black'}`} />
+                className={`flex-1 min-w-0 px-3 rounded-none border border-zinc-800 font-mono text-base focus:ring-2 focus:ring-[#2855A8] outline-none ${isDarkMode ? 'bg-[#1E1A15] text-[#F5F1E8]' : 'bg-[#F5F1E8] text-[#1A1A1A]'}`} />
             </div>
             <div className="flex flex-wrap gap-1 pt-1">
               {palette.map((c, i) => (
@@ -333,16 +346,18 @@ export const AccessibilityView: React.FC<AccessibilityViewProps> = ({ palette, i
 
         {/* Normal vision reference */}
         <div className={`p-3 border border-zinc-800 ${inner}`}>
-          <div className={`text-[11px] font-bold uppercase tracking-widest mb-2 ${muted}`}>Normal Vision (reference)</div>
-          <div className="flex h-10 w-full border border-zinc-800 overflow-hidden">
+          <div className={`text-[11px] font-bold uppercase tracking-widest mb-3 ${muted}`}>Normal Vision (reference)</div>
+          <div className="flex h-12 w-full border border-zinc-800 overflow-hidden">
             {palette.map((c, i) => (
-              <div key={i} className="flex-1 h-full" style={{ backgroundColor: c.hex }} title={c.name} />
+              <div key={i} className="flex-1 h-full relative" style={{ backgroundColor: c.hex }} title={c.name}>
+                {patternsEnabled && <PatternOverlay index={i} hex={c.hex} />}
+              </div>
             ))}
           </div>
         </div>
 
         {/* 2×2 grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {CB_TYPES.map(type => {
             const conflicts = conflictMap[type];
             const hasConflicts = conflicts.length > 0;
@@ -362,8 +377,13 @@ export const AccessibilityView: React.FC<AccessibilityViewProps> = ({ palette, i
                 {/* Header */}
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <div className={`text-[11px] font-black uppercase tracking-widest ${strong}`}>{CB_LABELS[type]}</div>
-                    <div className={`text-[10px] leading-relaxed mt-0.5 max-w-[200px] font-medium ${muted}`}>{CB_DESCRIPTIONS[type]}</div>
+                    <div className={`text-[11px] font-black uppercase tracking-widest ${strong} flex items-center gap-2`}>
+                      {CB_LABELS[type]}
+                      {activeProfile?.type === type && (
+                        <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 ${isDarkMode ? 'bg-[#2855A8] text-white' : 'bg-[#2855A8] text-white'}`}>You</span>
+                      )}
+                    </div>
+                    <div className={`text-[10px] leading-relaxed mt-0.5 max-w-[200px] min-h-[49px] font-medium ${muted}`}>{CB_DESCRIPTIONS[type]}</div>
                   </div>
                   {hasConflicts ? (
                     <div className={`flex items-center gap-1 shrink-0 ml-2 ${isDarkMode ? 'text-amber-300' : 'text-amber-800'}`}>
@@ -379,16 +399,21 @@ export const AccessibilityView: React.FC<AccessibilityViewProps> = ({ palette, i
                 </div>
 
                 {/* Simulated palette strip */}
-                <div className="space-y-1 mb-2">
+                <div className="space-y-3 mb-2">
                   {showFilter && (
                     <div className="flex items-center gap-2">
                       <span className={`text-[10px] font-bold uppercase tracking-wider w-16 shrink-0 ${muted}`}>No glasses</span>
-                      <div className="flex h-5 flex-1 border border-zinc-800 overflow-hidden">
-                        {palette.map((c, i) => (
-                          <div key={i} className="flex-1 h-full"
-                            style={{ backgroundColor: simulateColorBlind(c.hex, type, severity) }}
-                            title={c.name} />
-                        ))}
+                      <div className="flex h-9 flex-1 border border-zinc-800 overflow-hidden">
+                        {palette.map((c, i) => {
+                          const sim = simulateColorBlind(c.hex, type, severity);
+                          return (
+                            <div key={i} className="flex-1 h-full relative"
+                              style={{ backgroundColor: sim }}
+                              title={c.name}>
+                              {patternsEnabled && <PatternOverlay index={i} hex={sim} />}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -400,15 +425,18 @@ export const AccessibilityView: React.FC<AccessibilityViewProps> = ({ palette, i
                         {ENCHROMA_HELPS[type] ? '✓ Filter' : '— Filter'}
                       </span>
                     )}
-                    <div className={`flex h-${showFilter ? '5' : '8'} flex-1 border border-zinc-800 overflow-hidden`}>
+                    <div className="flex h-9 flex-1 border border-zinc-800 overflow-hidden">
                       {palette.map((c, i) => {
                         const filtered = (showFilter && ENCHROMA_HELPS[type])
                           ? applyEnChromaFilter(c.hex, filterStrength)
                           : c.hex;
+                        const sim = simulateColorBlind(filtered, type, severity);
                         return (
-                          <div key={i} className="flex-1 h-full"
-                            style={{ backgroundColor: simulateColorBlind(filtered, type, severity) }}
-                            title={c.name} />
+                          <div key={i} className="flex-1 h-full relative"
+                            style={{ backgroundColor: sim }}
+                            title={c.name}>
+                            {patternsEnabled && <PatternOverlay index={i} hex={sim} />}
+                          </div>
                         );
                       })}
                     </div>

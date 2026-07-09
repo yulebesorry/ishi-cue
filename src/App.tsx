@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Palette,
   RefreshCw,
@@ -20,7 +20,12 @@ import {
   Disc,
   Download,
   Upload,
-  ScanEye
+  ScanEye,
+  Glasses,
+  Crosshair,
+  Grip,
+  ChevronDown,
+  Wand2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Color from 'color';
@@ -28,6 +33,7 @@ import confetti from 'canvas-confetti';
 import { ColorTheoryRule, PaletteColor } from './types';
 import { generatePaletteFromRule, getColorName, simulateColorBlind, paletteConflicts, CB_LABELS } from './colorUtils';
 import type { ColorBlindType } from './colorUtils';
+import { assistMatrixValues } from './cvd';
 
 const CB_TYPES: ColorBlindType[] = ['protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia'];
 import { ColorWheelView } from './components/ColorWheelView';
@@ -36,6 +42,10 @@ import { ColorSwatch } from './components/ColorSwatch';
 import { ExportModal } from './components/ExportModal';
 import { ImageColorPicker } from './components/ImageColorPicker';
 import { IshiharaDemo } from './components/IshiharaDemo';
+import { VisionLensView } from './components/VisionLensView';
+import { CalibrateView } from './components/CalibrateView';
+import { useVisionProfile } from './profile';
+import { PatternOverlay } from './patterns';
 
 const RULES: { id: ColorTheoryRule; name: string; description: string }[] = [
   { id: 'design-system', name: 'Design System', description: 'One Color → Full Design System. Generates 10 essential UI colors.' },
@@ -88,8 +98,63 @@ export default function App() {
   const [palette, setPalette] = useState<PaletteColor[]>([]);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'palette' | 'preview' | 'wheel' | 'system' | 'image' | 'ishihara'>('system');
+  const [viewMode, setViewMode] = useState<'palette' | 'preview' | 'wheel' | 'system' | 'image' | 'ishihara' | 'lens' | 'calibrate'>('system');
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isHighContrast, setIsHighContrast] = useState(() => {
+    try { return localStorage.getItem('ishi-cue.highContrast') === 'on'; } catch { return false; }
+  });
+  const { profile, setProfile, clearProfile, patternsEnabled, setPatternsEnabled, assistEnabled, setAssistEnabled } = useVisionProfile();
+
+  // High contrast swaps the cream paper for white + navy ink (see index.css)
+  useEffect(() => {
+    document.documentElement.classList.toggle('high-contrast', isHighContrast);
+    try { localStorage.setItem('ishi-cue.highContrast', isHighContrast ? 'on' : 'off'); } catch { /* private mode */ }
+  }, [isHighContrast]);
+
+  // Site-wide "glasses" filter: daltonize everything below the header so the
+  // colors the user confuses pull apart. One feColorMatrix, computed from
+  // their profile.
+  const hasCVDProfile = profile !== null && profile.type !== 'none';
+  const assistActive = assistEnabled && hasCVDProfile;
+  const assistValues = useMemo(
+    () => (hasCVDProfile ? assistMatrixValues(profile!.type as ColorBlindType, profile!.severity) : null),
+    [hasCVDProfile, profile?.type, profile?.severity],
+  );
+  const [showVisionMenu, setShowVisionMenu] = useState(false);
+  const visionMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close the vision menu on outside click
+  useEffect(() => {
+    if (!showVisionMenu) return;
+    const onDown = (e: MouseEvent) => {
+      if (visionMenuRef.current && !visionMenuRef.current.contains(e.target as Node)) {
+        setShowVisionMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [showVisionMenu]);
+
+  // Quick-pick vision modes: plain-language types a visitor recognizes
+  // themselves in; picking one adapts the whole app immediately.
+  const VISION_MODES: { label: string; sub: string; type: ColorBlindType | 'none' }[] = [
+    { label: 'Red-Green · Deuteranopia', sub: 'Most common — green looks red, red looks like a dull green.', type: 'deuteranopia' },
+    { label: 'Red-Green · Protanopia', sub: 'Red-blind variant — reds appear dark and muted.', type: 'protanopia' },
+    { label: 'Blue-Yellow · Tritanopia', sub: 'Less common — blues and yellows blur into other colors.', type: 'tritanopia' },
+    { label: 'Monochromacy · Achromatopsia', sub: 'Rare — no color perception at all; contrast and texture do the work.', type: 'achromatopsia' },
+    { label: 'Typical Vision', sub: 'No accommodation needed.', type: 'none' },
+  ];
+
+  const pickVisionMode = (type: ColorBlindType | 'none') => {
+    if (type === 'none') {
+      clearProfile();
+    } else {
+      // Manual pick, not screened: full severity is the safe accommodation
+      // default; the Calibrate screener refines it.
+      setProfile({ type, severity: 1.0, confidence: 'low', calibratedAt: new Date().toISOString() });
+    }
+    setShowVisionMenu(false);
+  };
 
   // Initialize palette
   useEffect(() => {
@@ -185,6 +250,116 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-2 sm:gap-4">
+          {/* Vision mode picker: tell us how you see, the site adapts */}
+          <div ref={visionMenuRef} className="relative hidden sm:block">
+            <button
+              onClick={() => setShowVisionMenu(v => !v)}
+              title="Pick your color vision type and the whole site adapts"
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest border border-zinc-800 transition-colors ${
+                profile
+                  ? (isDarkMode ? 'bg-[#2A241E] text-stone-200 hover:bg-[#F5F1E8] hover:text-[#1A1A1A]' : 'bg-[#EEF2FF] text-[#2855A8] hover:bg-[#2855A8] hover:text-white')
+                  : (isDarkMode ? 'text-stone-300 hover:bg-[#2A241E]' : 'text-[#2C2418] hover:bg-zinc-900 hover:text-white')
+              }`}
+            >
+              <Crosshair size={11} />
+              {profile
+                ? (profile.type === 'none' ? 'Typical Vision' : `${CB_LABELS[profile.type]} · ${Math.round(profile.severity * 100)}%`)
+                : 'My Vision'}
+              <ChevronDown size={10} className={`transition-transform ${showVisionMenu ? 'rotate-180' : ''}`} />
+            </button>
+
+            <AnimatePresence>
+              {showVisionMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.98 }}
+                  className={`absolute right-0 top-full mt-2 w-80 border border-zinc-800 retro-shadow z-50 ${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'}`}
+                >
+                  <div className={`px-4 py-3 border-b border-zinc-800`}>
+                    <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-[#F5F1E8]' : 'text-[#1A1A1A]'}`}>How do you see color?</p>
+                    <p className={`text-[9px] mt-0.5 font-medium leading-relaxed ${isDarkMode ? 'text-stone-400' : 'text-[#4A3C34]'}`}>
+                      Pick the closest match — colors, contrast, and patterns across the site adjust for you.
+                    </p>
+                  </div>
+                  {VISION_MODES.map(mode => {
+                    const isActive = profile ? profile.type === mode.type : mode.type === 'none';
+                    return (
+                      <button
+                        key={mode.type}
+                        onClick={() => pickVisionMode(mode.type)}
+                        className={`w-full text-left px-4 py-2.5 border-b border-zinc-800/50 transition-colors group ${
+                          isActive
+                            ? (isDarkMode ? 'bg-[#2A241E]' : 'bg-[#EEF2FF]')
+                            : (isDarkMode ? 'hover:bg-[#2A241E]' : 'hover:bg-stone-200/60')
+                        }`}
+                      >
+                        <span className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-wider ${isDarkMode ? 'text-stone-100' : 'text-[#1A1A1A]'}`}>
+                          {mode.label}
+                          {isActive && <span className="text-[8px] px-1.5 py-0.5 bg-[#2855A8] text-white tracking-widest">Active</span>}
+                        </span>
+                        <span className={`block mt-0.5 text-[9px] font-medium leading-snug normal-case ${isDarkMode ? 'text-stone-400' : 'text-[#4A3C34]'}`}>
+                          {mode.sub}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() => { setShowVisionMenu(false); setViewMode('calibrate'); }}
+                    className={`w-full flex items-center justify-between px-4 py-3 text-[9px] font-black uppercase tracking-widest transition-colors ${
+                      isDarkMode ? 'text-stone-200 hover:bg-[#F5F1E8] hover:text-[#1A1A1A]' : 'text-[#2855A8] hover:bg-[#2855A8] hover:text-white'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5"><ScanEye size={11} /> Not sure? Take the 1-minute screening</span>
+                    <span>→</span>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+          {/* Assist filter toggle — recolors the site through the user's corrective lens */}
+          {hasCVDProfile && (
+            <button
+              onClick={() => setAssistEnabled(!assistEnabled)}
+              title={assistActive
+                ? 'Assist on — the site is recolored so the colors you confuse pull apart. Click to see true colors.'
+                : 'Assist off — showing true colors. Click to recolor the site for your vision.'}
+              className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest border border-zinc-800 transition-colors ${
+                assistActive
+                  ? 'bg-[#2855A8] text-white'
+                  : (isDarkMode ? 'text-stone-300 hover:bg-[#2A241E]' : 'text-[#2C2418] hover:bg-zinc-900 hover:text-white')
+              }`}
+            >
+              <Wand2 size={11} />
+              Assist · {assistActive ? 'On' : 'Off'}
+            </button>
+          )}
+          {/* Pattern overlay toggle — texture as a second channel for color identity */}
+          <button
+            onClick={() => setPatternsEnabled(!patternsEnabled)}
+            title={patternsEnabled ? 'Pattern overlays on — each palette color carries a unique texture' : 'Turn on pattern overlays so colors are tellable apart by texture, not just hue'}
+            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest border border-zinc-800 transition-colors ${
+              patternsEnabled
+                ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-zinc-900 text-white')
+                : (isDarkMode ? 'text-stone-300 hover:bg-[#2A241E]' : 'text-[#2C2418] hover:bg-zinc-900 hover:text-white')
+            }`}
+          >
+            <Grip size={11} />
+            Patterns · {patternsEnabled ? 'On' : 'Off'}
+          </button>
+          {/* High contrast: white paper + navy ink, max luminance contrast */}
+          <button
+            onClick={() => setIsHighContrast(v => !v)}
+            title="High contrast — white background with navy ink (17:1) instead of cream"
+            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest border border-zinc-800 transition-colors ${
+              isHighContrast
+                ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-zinc-900 text-white')
+                : (isDarkMode ? 'text-stone-300 hover:bg-[#2A241E]' : 'text-[#2C2418] hover:bg-zinc-900 hover:text-white')
+            }`}
+          >
+            <span className="w-2.5 h-2.5 border border-current" style={{ background: 'linear-gradient(135deg, currentColor 50%, transparent 50%)' }} aria-hidden="true" />
+            Contrast · {isHighContrast ? 'On' : 'Off'}
+          </button>
           {/* Retro Theme Slider */}
           <div className="flex items-center gap-2 sm:gap-3">
             <Sun size={12} className={`sm:w-[14px] sm:h-[14px] ${isDarkMode ? 'text-gray-600' : 'text-zinc-900'}`} />
@@ -199,8 +374,22 @@ export default function App() {
         </div>
       </header>
 
+      {/* Assist filter definition — applied to main content when active */}
+      {assistValues && (
+        <svg style={{ position: 'absolute', width: 0, height: 0 }} aria-hidden="true">
+          <defs>
+            <filter id="icue-assist" colorInterpolationFilters="linearRGB">
+              <feColorMatrix type="matrix" values={assistValues} />
+            </filter>
+          </defs>
+        </svg>
+      )}
+
       {/* Main Content */}
-      <main className={`max-w-7xl mx-auto p-4 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-stretch`}>
+      <main
+        className={`max-w-7xl mx-auto p-4 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-stretch`}
+        style={assistActive ? { filter: 'url(#icue-assist)' } : undefined}
+      >
         {/* Palette Display */}
         <section className="lg:col-span-8 flex flex-col gap-6">
           <div className="space-y-3 flex-none">
@@ -272,6 +461,28 @@ export default function App() {
                   <ScanEye size={16} />
                   Plate Test
                 </button>
+                <button
+                  onClick={() => setViewMode('lens')}
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
+                    viewMode === 'lens'
+                      ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white')
+                      : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
+                  }`}
+                >
+                  <Glasses size={16} />
+                  Vision Lens
+                </button>
+                <button
+                  onClick={() => setViewMode('calibrate')}
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
+                    viewMode === 'calibrate'
+                      ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white')
+                      : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
+                  }`}
+                >
+                  <Crosshair size={16} />
+                  Calibrate
+                </button>
               </div>
             </div>
 
@@ -318,7 +529,7 @@ export default function App() {
                   </div>
 
                   {/* Colorblind check strip */}
-                  <div className={`${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} border border-zinc-800 p-4 space-y-3`}>
+                  <div className={`${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} border border-zinc-800 p-4 space-y-6`}>
                     <p className={`text-xs font-black uppercase tracking-widest ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>Colorblind Check</p>
                     {CB_TYPES.map(type => {
                       const conflicts = paletteConflicts(palette, type);
@@ -328,11 +539,16 @@ export default function App() {
                           <span className={`text-[11px] font-bold uppercase tracking-wider w-28 shrink-0 ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>
                             {CB_LABELS[type]}
                           </span>
-                          <div className="flex h-5 flex-1 border border-zinc-800 overflow-hidden">
-                            {palette.map((c, i) => (
-                              <div key={i} className="flex-1 h-full"
-                                style={{ backgroundColor: simulateColorBlind(c.hex, type) }} />
-                            ))}
+                          <div className="flex h-9 flex-1 border border-zinc-800 overflow-hidden">
+                            {palette.map((c, i) => {
+                              const sim = simulateColorBlind(c.hex, type);
+                              return (
+                                <div key={i} className="flex-1 h-full relative"
+                                  style={{ backgroundColor: sim }}>
+                                  {patternsEnabled && <PatternOverlay index={i} hex={sim} />}
+                                </div>
+                              );
+                            })}
                           </div>
                           <span className={`text-xs font-black uppercase shrink-0 flex items-center gap-1 w-20 ${ok ? (isDarkMode ? 'text-green-400' : 'text-green-700') : (isDarkMode ? 'text-amber-300' : 'text-amber-800')}`}>
                             {ok ? '✓ Good' : `⚠ ${conflicts.length} conflict${conflicts.length > 1 ? 's' : ''}`}
@@ -537,6 +753,26 @@ export default function App() {
                 >
                   <IshiharaDemo palette={palette} isDarkMode={isDarkMode} />
                 </motion.div>
+              ) : viewMode === 'lens' ? (
+                <motion.div
+                  key="lens-view"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="flex-1"
+                >
+                  <VisionLensView isDarkMode={isDarkMode} />
+                </motion.div>
+              ) : viewMode === 'calibrate' ? (
+                <motion.div
+                  key="calibrate-view"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="flex-1"
+                >
+                  <CalibrateView isDarkMode={isDarkMode} />
+                </motion.div>
               ) : null}
             </AnimatePresence>
           </div>
@@ -585,7 +821,7 @@ export default function App() {
 
             <div className="space-y-3 flex-1 flex flex-col">
               <label className={`text-xs font-bold uppercase tracking-widest flex-none ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>Theory Rule</label>
-              <div className={`grid ${viewMode === 'palette' ? 'grid-cols-2' : 'grid-cols-1'} gap-2 flex-1 content-start`}>
+              <div className="grid grid-cols-2 gap-2 flex-1 content-start">
                 {RULES.map((r) => (
                   <button
                     key={r.id}

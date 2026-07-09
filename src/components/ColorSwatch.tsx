@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Lock, Unlock, Copy, Hash, MoreVertical, Layers } from 'lucide-react';
 import Color from 'color';
 import { PaletteColor } from '../types';
+import { PatternOverlay } from '../patterns';
+import { useVisionProfile } from '../profile';
 
 interface ColorSwatchProps {
   color: PaletteColor;
@@ -23,6 +25,7 @@ export const ColorSwatch: React.FC<ColorSwatchProps> = ({
   isCopied,
   onGenerateShades
 }) => {
+  const { patternsEnabled } = useVisionProfile();
   const [isHovered, setIsHovered] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(color.hex);
@@ -115,10 +118,11 @@ export const ColorSwatch: React.FC<ColorSwatchProps> = ({
         }}
       >
         {/* Color Fill */}
-        <div 
+        <div
           className="absolute inset-0 transition-colors duration-500"
           style={{ backgroundColor: color.hex }}
         />
+        {patternsEnabled && <PatternOverlay index={index} hex={color.hex} />}
 
         {/* Overlay Info */}
         <div className={`absolute inset-0 flex flex-col justify-between p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${overlayBg} backdrop-blur-[2px]`}>

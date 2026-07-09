@@ -109,8 +109,37 @@ export const ImageColorPicker: React.FC<ImageColorPickerProps> = ({ isDarkMode, 
     if (!ctx) return;
 
     const rect = img.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * img.naturalWidth;
-    const y = ((e.clientY - rect.top) / rect.height) * img.naturalHeight;
+
+    // The <img> uses object-contain, so unless its aspect ratio exactly
+    // matches the box, the rendered picture is letterboxed — a centered
+    // strip with empty margin on two sides. Mapping clicks proportionally
+    // across the full box (the old approach) samples the wrong pixel, or a
+    // clamped edge pixel, for any click that lands in that margin. Replicate
+    // object-contain's own fit math so only clicks on the actual visible
+    // picture register.
+    const boxAR = rect.width / rect.height;
+    const imgAR = img.naturalWidth / img.naturalHeight;
+    let displayW: number, displayH: number, offsetX: number, offsetY: number;
+    if (imgAR > boxAR) {
+      displayW = rect.width;
+      displayH = rect.width / imgAR;
+      offsetX = 0;
+      offsetY = (rect.height - displayH) / 2;
+    } else {
+      displayH = rect.height;
+      displayW = rect.height * imgAR;
+      offsetY = 0;
+      offsetX = (rect.width - displayW) / 2;
+    }
+
+    const localX = e.clientX - rect.left - offsetX;
+    const localY = e.clientY - rect.top - offsetY;
+    if (localX < 0 || localX > displayW || localY < 0 || localY > displayH) {
+      return; // clicked in the letterboxed margin, not on the picture itself
+    }
+
+    const x = Math.min(img.naturalWidth - 1, Math.max(0, Math.round((localX / displayW) * img.naturalWidth)));
+    const y = Math.min(img.naturalHeight - 1, Math.max(0, Math.round((localY / displayH) * img.naturalHeight)));
 
     const pixel = ctx.getImageData(x, y, 1, 1).data;
     const hex = Color.rgb(pixel[0], pixel[1], pixel[2]).hex();

@@ -2,6 +2,8 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence, useMotionValue } from 'motion/react';
 import Color from 'color';
 import { PaletteColor } from '../types';
+import { SvgPatternDefs, svgPatternRef, PatternOverlay } from '../patterns';
+import { useVisionProfile } from '../profile';
 
 interface ColorWheelViewProps {
   palette: PaletteColor[];
@@ -16,6 +18,7 @@ export const ColorWheelView: React.FC<ColorWheelViewProps> = ({
   onUpdate,
   onBaseColorChange 
 }) => {
+  const { patternsEnabled } = useVisionProfile();
   const radius = 180;
   const center = 200;
   const size = 400;
@@ -161,6 +164,7 @@ export const ColorWheelView: React.FC<ColorWheelViewProps> = ({
           viewBox={`0 0 ${size} ${size}`} 
           className="w-full h-full overflow-visible touch-none"
         >
+          <SvgPatternDefs />
           {/* Hue Reference Ring */}
           <circle 
             cx={center} 
@@ -254,7 +258,16 @@ export const ColorWheelView: React.FC<ColorWheelViewProps> = ({
                 strokeWidth={activeNode === i ? "3" : "2"}
                 className="retro-shadow transition-all duration-200 group-hover:scale-110"
               />
-              
+              {patternsEnabled && (
+                <circle
+                  cx={node.x}
+                  cy={node.y}
+                  r={activeNode === i ? "16.5" : "13"}
+                  fill={svgPatternRef(i, node.hex)}
+                  className="pointer-events-none"
+                />
+              )}
+
               {/* Value (Brightness) Ring - Visual feedback for scroll */}
               <circle
                 cx={node.x}
@@ -317,7 +330,9 @@ export const ColorWheelView: React.FC<ColorWheelViewProps> = ({
         <div className="absolute -bottom-4 left-0 right-0 flex flex-nowrap overflow-x-auto no-scrollbar justify-center gap-4 px-4">
           {palette.map((color, i) => (
             <div key={i} className="flex items-center gap-2 flex-shrink-0">
-              <div className="w-2 h-2 rounded-none" style={{ backgroundColor: color.hex }} />
+              <div className={`${patternsEnabled ? 'w-4 h-4' : 'w-2 h-2'} rounded-none relative`} style={{ backgroundColor: color.hex }}>
+                {patternsEnabled && <PatternOverlay index={i} hex={color.hex} />}
+              </div>
               <span className={`text-[11px] font-black uppercase tracking-widest ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>{color.name}</span>
             </div>
           ))}

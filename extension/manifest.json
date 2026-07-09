@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "ISHI CUE — Vision Assist",
+  "version": "0.1.0",
+  "description": "Recolors every website for your color vision. Daltonization tuned to your type and severity, from the ISHI CUE project.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "ISHI CUE Vision Assist"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ]
+}

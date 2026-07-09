@@ -1,8 +1,9 @@
 import Color from 'color';
 import namer from 'color-namer';
 import { ColorTheoryRule, PaletteColor, ColorRole } from './types';
+import { simulateHex, CVDType } from './cvd';
 
-export type ColorBlindType = 'protanopia' | 'deuteranopia' | 'tritanopia' | 'achromatopsia';
+export type ColorBlindType = CVDType;
 export type CVDGroup = 'redgreen' | 'blueyellow';
 
 export const HUE_DANGER_ZONES: Record<CVDGroup, { label: string; cvdNames: string; ranges: [number, number][]; color: string }> = {
@@ -61,13 +62,6 @@ export const CB_DESCRIPTIONS: Record<ColorBlindType, string> = {
   achromatopsia: 'Total color blindness — world seen entirely in grey, black, and white.',
 };
 
-// feColorMatrix rows: R, G, B coefficients for each output channel
-const CB_MATRICES: Record<ColorBlindType, [number, number, number, number, number, number, number, number, number]> = {
-  protanopia:    [0.567, 0.433, 0,     0.558, 0.442, 0,     0,     0.242, 0.758],
-  deuteranopia:  [0.625, 0.375, 0,     0.7,   0.3,   0,     0,     0.3,   0.7  ],
-  tritanopia:    [0.95,  0.05,  0,     0,     0.433, 0.567, 0,     0.475, 0.525],
-  achromatopsia: [0.299, 0.587, 0.114, 0.299, 0.587, 0.114, 0.299, 0.587, 0.114],
-};
 
 // EnChroma-style optical notch filter approximation.
 // Real EnChroma glasses cut ~530–580 nm (the yellow-green band where L and M
@@ -109,20 +103,10 @@ export const ENCHROMA_HELPS: Partial<Record<ColorBlindType, true>> = {
 };
 
 // severity: 0 = normal vision, 1 = full dichromacy (most severe).
-// Interpolates linearly so 0.3 ≈ mild anomalous trichromacy, 0.6 ≈ moderate.
+// Delegates to the Machado et al. (2009) model in cvd.ts, which handles
+// severity via the published parameterized matrices in linear RGB.
 export function simulateColorBlind(hex: string, type: ColorBlindType, severity: number = 1): string {
-  const s = Math.max(0, Math.min(1, severity));
-  const c = Color(hex);
-  const r = c.red(), g = c.green(), b = c.blue();
-  const m = CB_MATRICES[type];
-  const r2 = m[0]*r + m[1]*g + m[2]*b;
-  const g2 = m[3]*r + m[4]*g + m[5]*b;
-  const b2 = m[6]*r + m[7]*g + m[8]*b;
-  return Color.rgb(
-    Math.round(Math.min(255, Math.max(0, r + (r2 - r) * s))),
-    Math.round(Math.min(255, Math.max(0, g + (g2 - g) * s))),
-    Math.round(Math.min(255, Math.max(0, b + (b2 - b) * s))),
-  ).hex();
+  return simulateHex(hex, type, severity);
 }
 
 function rgbDistance(a: string, b: string): number {
