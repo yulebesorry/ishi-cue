@@ -513,7 +513,7 @@ export default function App() {
                   exit={{ opacity: 0, x: -20 }}
                   className="flex flex-col gap-6 flex-1"
                 >
-                  <div className={`grid grid-cols-5 ${rule === 'design-system' ? 'grid-rows-2 gap-y-8 sm:gap-y-12' : ''} gap-x-2 sm:gap-x-4 gap-y-4 flex-1`}>
+                  <div className={`grid grid-cols-5 ${rule === 'design-system' ? 'grid-rows-2 gap-y-8 sm:gap-y-12 min-h-[340px]' : 'min-h-[170px]'} gap-x-2 sm:gap-x-4 gap-y-4 flex-1`}>
                     {palette.map((color, i) => (
                       <ColorSwatch
                         key={`${i}-${color.hex}`}
