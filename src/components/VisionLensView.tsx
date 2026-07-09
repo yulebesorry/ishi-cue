@@ -298,12 +298,12 @@ export const VisionLensView: React.FC<VisionLensViewProps> = ({ isDarkMode }) =>
         <div className="space-y-2">
           <div
             ref={compareRef}
-            className="relative w-full border border-zinc-800 overflow-hidden select-none touch-none cursor-ew-resize"
+            className={`relative w-full h-[46vh] max-h-[460px] min-h-[220px] border border-zinc-800 overflow-hidden select-none touch-none cursor-ew-resize ${isDarkMode ? 'bg-black' : 'bg-zinc-100'}`}
             onPointerDown={e => { setIsDragging(true); updateDivider(e.clientX); }}
           >
-            <canvas ref={beforeCanvasRef} className="block w-full h-auto" />
+            <canvas ref={beforeCanvasRef} className="block w-full h-full object-contain" />
             <div className="absolute inset-0" style={{ clipPath: `inset(0 0 0 ${divider}%)` }}>
-              <canvas ref={afterCanvasRef} className="block w-full h-auto" />
+              <canvas ref={afterCanvasRef} className="block w-full h-full object-contain" />
             </div>
             {/* Divider handle */}
             <div className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.6)]" style={{ left: `${divider}%` }}>
