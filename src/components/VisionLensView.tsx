@@ -253,78 +253,81 @@ export const VisionLensView: React.FC<VisionLensViewProps> = ({ isDarkMode }) =>
         )}
       </div>
 
-      {/* Dropzone / comparison area */}
-      {!source ? (
-        <div
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => {
-            e.preventDefault();
-            const file = e.dataTransfer.files?.[0];
-            if (file) loadFile(file);
-          }}
-          className={`flex-1 flex flex-col items-center justify-center gap-4 border-2 border-dashed ${isDarkMode ? 'border-zinc-700' : 'border-zinc-400'} p-12 min-h-[380px]`}
-        >
-          <Upload size={28} className={muted} />
-          <div className="text-center space-y-1">
-            <p className={`text-sm font-black uppercase tracking-widest ${strong}`}>Drop a screenshot or image</p>
-            <p className={`text-[11px] font-medium ${muted} flex items-center gap-1.5 justify-center`}>
-              <Clipboard size={11} /> or paste one from your clipboard (⌘V)
-            </p>
-          </div>
-          {error && <p className="text-xs font-bold text-red-500">{error}</p>}
-          <div className="flex gap-2">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-zinc-800 transition-colors ${
-                isDarkMode ? 'bg-[#2A241E] text-stone-200 hover:bg-[#2855A8] hover:text-white' : 'bg-stone-100 text-[#2C2418] hover:bg-[#2855A8] hover:text-white'
-              }`}
-            >
-              Browse Files
-            </button>
-            <button
-              onClick={() => { setSource(drawSampleChart()); setSourceName('test-chart'); }}
-              className={`flex items-center gap-2 px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-zinc-800 transition-colors ${
-                isDarkMode ? 'text-stone-300 hover:bg-[#2A241E]' : 'text-[#2C2418] hover:bg-zinc-900 hover:text-white'
-              }`}
-            >
-              <Wand2 size={12} />
-              Try Test Chart
-            </button>
-          </div>
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) loadFile(f); }} />
-        </div>
-      ) : (
-        <div className="space-y-2">
+      {/* Image (or dropzone) alongside controls — side-by-side at lg: so both
+          are visible at once instead of stacking the controls below a tall
+          image, which forced scrolling back and forth between them. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 items-start">
+        {!source ? (
           <div
-            ref={compareRef}
-            className={`relative w-full h-[46vh] max-h-[460px] min-h-[220px] border border-zinc-800 overflow-hidden select-none touch-none cursor-ew-resize ${isDarkMode ? 'bg-black' : 'bg-zinc-100'}`}
-            onPointerDown={e => { setIsDragging(true); updateDivider(e.clientX); }}
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => {
+              e.preventDefault();
+              const file = e.dataTransfer.files?.[0];
+              if (file) loadFile(file);
+            }}
+            className={`flex flex-col items-center justify-center gap-4 border-2 border-dashed ${isDarkMode ? 'border-zinc-700' : 'border-zinc-400'} p-12 min-h-[260px] lg:min-h-[420px]`}
           >
-            <canvas ref={beforeCanvasRef} className="block w-full h-full object-contain" />
-            <div className="absolute inset-0" style={{ clipPath: `inset(0 0 0 ${divider}%)` }}>
-              <canvas ref={afterCanvasRef} className="block w-full h-full object-contain" />
+            <Upload size={28} className={muted} />
+            <div className="text-center space-y-1">
+              <p className={`text-sm font-black uppercase tracking-widest ${strong}`}>Drop a screenshot or image</p>
+              <p className={`text-[11px] font-medium ${muted} flex items-center gap-1.5 justify-center`}>
+                <Clipboard size={11} /> or paste one from your clipboard (⌘V)
+              </p>
             </div>
-            {/* Divider handle */}
-            <div className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.6)]" style={{ left: `${divider}%` }}>
-              <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-7 h-7 bg-white border-2 border-zinc-900 flex items-center justify-center">
-                <Sliders size={12} className="text-zinc-900 rotate-90" />
-              </div>
+            {error && <p className="text-xs font-bold text-red-500">{error}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-zinc-800 transition-colors ${
+                  isDarkMode ? 'bg-[#2A241E] text-stone-200 hover:bg-[#2855A8] hover:text-white' : 'bg-stone-100 text-[#2C2418] hover:bg-[#2855A8] hover:text-white'
+                }`}
+              >
+                Browse Files
+              </button>
+              <button
+                onClick={() => { setSource(drawSampleChart()); setSourceName('test-chart'); }}
+                className={`flex items-center gap-2 px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-zinc-800 transition-colors ${
+                  isDarkMode ? 'text-stone-300 hover:bg-[#2A241E]' : 'text-[#2C2418] hover:bg-zinc-900 hover:text-white'
+                }`}
+              >
+                <Wand2 size={12} />
+                Try Test Chart
+              </button>
             </div>
-            {/* Pane labels */}
-            <span className="absolute top-2 left-2 px-2 py-1 text-[9px] font-black uppercase tracking-widest bg-black/70 text-white pointer-events-none">
-              {simulateView ? 'Original · as you see it' : 'Original'}
-            </span>
-            <span className="absolute top-2 right-2 px-2 py-1 text-[9px] font-black uppercase tracking-widest bg-[#2855A8] text-white pointer-events-none">
-              {simulateView ? 'Corrected · as you see it' : 'Corrected'}
-            </span>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) loadFile(f); }} />
           </div>
-          <p className={`text-[10px] font-medium ${muted}`}>Drag the divider to compare. Left is untouched; right is recolored for {CB_LABELS[cvdType].toLowerCase()}.</p>
-        </div>
-      )}
+        ) : (
+          <div className="space-y-2">
+            <div
+              ref={compareRef}
+              className={`relative w-full h-[30vh] max-h-[300px] lg:h-[55vh] lg:max-h-[520px] min-h-[180px] border border-zinc-800 overflow-hidden select-none touch-none cursor-ew-resize ${isDarkMode ? 'bg-black' : 'bg-zinc-100'}`}
+              onPointerDown={e => { setIsDragging(true); updateDivider(e.clientX); }}
+            >
+              <canvas ref={beforeCanvasRef} className="block w-full h-full object-contain" />
+              <div className="absolute inset-0" style={{ clipPath: `inset(0 0 0 ${divider}%)` }}>
+                <canvas ref={afterCanvasRef} className="block w-full h-full object-contain" />
+              </div>
+              {/* Divider handle */}
+              <div className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.6)]" style={{ left: `${divider}%` }}>
+                <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-7 h-7 bg-white border-2 border-zinc-900 flex items-center justify-center">
+                  <Sliders size={12} className="text-zinc-900 rotate-90" />
+                </div>
+              </div>
+              {/* Pane labels */}
+              <span className="absolute top-2 left-2 px-2 py-1 text-[9px] font-black uppercase tracking-widest bg-black/70 text-white pointer-events-none">
+                {simulateView ? 'Original · as you see it' : 'Original'}
+              </span>
+              <span className="absolute top-2 right-2 px-2 py-1 text-[9px] font-black uppercase tracking-widest bg-[#2855A8] text-white pointer-events-none">
+                {simulateView ? 'Corrected · as you see it' : 'Corrected'}
+              </span>
+            </div>
+            <p className={`text-[10px] font-medium ${muted}`}>Drag the divider to compare. Left is untouched; right is recolored for {CB_LABELS[cvdType].toLowerCase()}.</p>
+          </div>
+        )}
 
-      {/* Controls */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Controls */}
+        <div className="space-y-4">
         {/* Vision type */}
         <div className={`p-4 border border-zinc-800 ${inner} space-y-3`}>
           <div className="flex items-center justify-between">
@@ -426,6 +429,7 @@ export const VisionLensView: React.FC<VisionLensViewProps> = ({ isDarkMode }) =>
               Values past 100% overdrive the shift.
             </p>
           </div>
+        </div>
         </div>
       </div>
 
