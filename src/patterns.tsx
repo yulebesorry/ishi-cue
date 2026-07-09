@@ -18,12 +18,36 @@ export const PATTERN_NAMES = [
   'Rings', 'Grid', 'Checker', 'Reverse Diagonal', 'Diamonds',
 ] as const;
 
-/** Ink color that stays visible on top of the given fill. */
+// WCAG relative luminance / contrast — used instead of Color's isDark()
+// heuristic so the black-vs-white choice is the one that's actually higher
+// contrast, not just "lighter or darker than middle grey".
+function relLuminance(hex: string): number {
+  const c = Color(hex);
+  const [r, g, b] = [c.red(), c.green(), c.blue()].map(v => {
+    const s = v / 255;
+    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrastRatio(l1: number, l2: number): number {
+  const [hi, lo] = l1 > l2 ? [l1, l2] : [l2, l1];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * Solid black or white — never alpha-blended. A semi-transparent "white"
+ * ink over a red swatch doesn't render as white, it renders as a lighter
+ * shade of red (blend math: white@0.55 over rgb(239,68,68) = rgb(248,171,171)).
+ * That reintroduces the exact hue-dependence patterns exist to route around,
+ * so the ink here is fully opaque and picked by actual contrast ratio.
+ */
 export function patternInk(hex: string): string {
   try {
-    return Color(hex).isDark() ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)';
+    const lum = relLuminance(hex);
+    return contrastRatio(lum, 0) >= contrastRatio(lum, 1) ? '#000000' : '#ffffff';
   } catch {
-    return 'rgba(0,0,0,0.45)';
+    return '#000000';
   }
 }
 
@@ -71,7 +95,7 @@ export const PatternOverlay: React.FC<PatternOverlayProps> = ({ index, hex, clas
 
 // ── SVG variants for the color wheel ────────────────────────────────────────
 
-const SVG_INKS = { light: 'rgba(255,255,255,0.6)', dark: 'rgba(0,0,0,0.5)' } as const;
+const SVG_INKS = { light: '#ffffff', dark: '#000000' } as const;
 
 function svgPatternContent(index: number, ink: string): React.ReactNode {
   const i = ((index % PATTERN_COUNT) + PATTERN_COUNT) % PATTERN_COUNT;
@@ -104,6 +128,9 @@ export const SvgPatternDefs: React.FC = () => (
 
 export function svgPatternRef(index: number, hex: string): string {
   let ink: keyof typeof SVG_INKS = 'dark';
-  try { ink = Color(hex).isDark() ? 'light' : 'dark'; } catch { /* keep dark */ }
+  try {
+    const lum = relLuminance(hex);
+    ink = contrastRatio(lum, 0) >= contrastRatio(lum, 1) ? 'dark' : 'light';
+  } catch { /* keep dark */ }
   return `url(#icue-pat-${((index % PATTERN_COUNT) + PATTERN_COUNT) % PATTERN_COUNT}-${ink})`;
 }
