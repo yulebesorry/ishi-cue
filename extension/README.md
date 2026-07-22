@@ -1,7 +1,7 @@
-# ISHI CUE — Vision Assist (browser extension)
+# ISHI Q — Vision Assist (browser extension)
 
 Recolors every website for your color vision. The same daltonization engine
-as the ISHI CUE app (Machado et al. 2009, linear-RGB), collapsed into a single
+as the ISHI Q app (Machado et al. 2009, linear-RGB), collapsed into a single
 `feColorMatrix` and applied to each page's document root.
 
 ## Load it (Chrome / Edge / Brave / Arc)
@@ -9,7 +9,7 @@ as the ISHI CUE app (Machado et al. 2009, linear-RGB), collapsed into a single
 1. Open `chrome://extensions`
 2. Turn on **Developer mode** (top right)
 3. Click **Load unpacked** and select this `extension/` folder
-4. Pin "ISHI CUE — Vision Assist" and click it to set your vision type,
+4. Pin "ISHI Q — Vision Assist" and click it to set your vision type,
    severity, and correction strength
 
 Settings sync via `chrome.storage.sync`, apply to all tabs (and iframes)
@@ -18,7 +18,7 @@ popup to disable the filter on color-critical sites (photo editing, proofing).
 
 ## Tips
 
-- Run the **Calibrate** screening in the ISHI CUE app first, then copy your
+- Run the **Calibrate** screening in the ISHI Q app first, then copy your
   type and severity into the popup.
 - **Strength** past 100% overdrives the correction — useful for severe
   deficiencies, at the cost of natural-looking hues.

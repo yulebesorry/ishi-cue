@@ -25,7 +25,9 @@ import {
   Crosshair,
   Grip,
   ChevronDown,
-  Wand2
+  Wand2,
+  ShieldCheck,
+  LayoutGrid
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Color from 'color';
@@ -56,6 +58,28 @@ const RULES: { id: ColorTheoryRule; name: string; description: string }[] = [
   { id: 'monochromatic', name: 'Monochromatic', description: 'Variations in lightness and saturation of one hue.' },
   { id: 'split-complementary', name: 'Split Complementary', description: 'Base color plus two colors adjacent to its complement.' },
 ];
+
+type ViewMode = 'palette' | 'preview' | 'wheel' | 'system' | 'image' | 'ishihara' | 'lens' | 'calibrate';
+type AppMode = 'designer' | 'personal';
+
+// The app splits into two audiences with different jobs: designers auditing
+// and building color systems for colorblind/low-vision viewers, versus
+// colorblind/low-vision people correcting what's in front of them right now.
+// Each tab belongs to exactly one side.
+const TABS: Record<AppMode, { id: ViewMode; label: string; icon: typeof Palette }[]> = {
+  designer: [
+    { id: 'palette', label: 'Palette', icon: Palette },
+    { id: 'wheel', label: 'Wheel', icon: Disc },
+    { id: 'preview', label: 'Preview', icon: Eye },
+    { id: 'system', label: 'Accessibility', icon: ShieldCheck },
+    { id: 'image', label: 'Image', icon: Upload },
+    { id: 'ishihara', label: 'Plate Test', icon: ScanEye },
+  ],
+  personal: [
+    { id: 'lens', label: 'Vision Lens', icon: Glasses },
+    { id: 'calibrate', label: 'Calibrate', icon: Crosshair },
+  ],
+};
 
 const LogoIcon = ({ size = 24, className = "" }: { size?: number, className?: string }) => (
   <svg width={size} height={size} viewBox="0 0 40 40" className={className} style={{ minWidth: size, minHeight: size }}>
@@ -98,7 +122,15 @@ export default function App() {
   const [palette, setPalette] = useState<PaletteColor[]>([]);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'palette' | 'preview' | 'wheel' | 'system' | 'image' | 'ishihara' | 'lens' | 'calibrate'>('system');
+  const [appMode, setAppMode] = useState<AppMode>(() => {
+    try { return (localStorage.getItem('ishi-q.appMode') as AppMode) || 'personal'; } catch { return 'personal'; }
+  });
+  const [viewMode, setViewMode] = useState<ViewMode>(() => (appMode === 'designer' ? 'palette' : 'lens'));
+  const switchMode = (mode: AppMode) => {
+    setAppMode(mode);
+    setViewMode(TABS[mode][0].id);
+    try { localStorage.setItem('ishi-q.appMode', mode); } catch { /* private mode */ }
+  };
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isHighContrast, setIsHighContrast] = useState(() => {
     try { return localStorage.getItem('ishi-cue.highContrast') === 'on'; } catch { return false; }
@@ -243,7 +275,7 @@ export default function App() {
           <LogoIcon size={42} className="shrink-0" />
           <div>
             <h1 className="text-3xl font-bold tracking-tighter uppercase leading-none font-display">
-              ISHI CUE
+              ISHI Q
             </h1>
             <p className={`text-[10px] ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'} font-black uppercase tracking-[0.2em]`}>Color tool · Accessible by design</p>
           </div>
@@ -391,116 +423,80 @@ export default function App() {
         style={assistActive ? { filter: 'url(#icue-assist)' } : undefined}
       >
         {/* Palette Display */}
-        <section className="lg:col-span-8 flex flex-col gap-6">
+        <section className={`${appMode === 'designer' ? 'lg:col-span-8' : 'lg:col-span-12'} flex flex-col gap-6`}>
           <div className="space-y-3 flex-none">
+            {/* Top-level split: designers auditing/building color systems for
+                colorblind & low-vision viewers, vs. colorblind/low-vision
+                people correcting what's in front of them right now. These are
+                different jobs for different people — every tab belongs to
+                exactly one side, so the mode switch is the primary choice. */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => switchMode('designer')}
+                className={`text-left p-3 rounded-none border transition-all flex items-start gap-2.5 ${
+                  appMode === 'designer'
+                    ? (isDarkMode ? 'border-[#F5F1E8] bg-[#2A241E] ring-1 ring-[#F5F1E8]' : 'border-[#2855A8] bg-[#EEF2FF] ring-1 ring-[#2855A8]')
+                    : (isDarkMode ? 'border-zinc-800 hover:border-zinc-600 bg-[#1E1A15]' : 'border-zinc-800 hover:border-zinc-600 bg-stone-100/50')
+                }`}
+              >
+                <LayoutGrid size={16} className={`shrink-0 mt-0.5 ${appMode === 'designer' ? 'text-[#2855A8]' : isDarkMode ? 'text-stone-400' : 'text-zinc-500'}`} />
+                <div>
+                  <div className={`text-xs font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>For Designers</div>
+                  <div className={`text-[10px] mt-0.5 leading-tight font-medium ${isDarkMode ? 'text-stone-400' : 'text-[#4A3C34]'}`}>Build &amp; audit color systems for colorblind and low-vision users</div>
+                </div>
+              </button>
+              <button
+                onClick={() => switchMode('personal')}
+                className={`text-left p-3 rounded-none border transition-all flex items-start gap-2.5 ${
+                  appMode === 'personal'
+                    ? (isDarkMode ? 'border-[#F5F1E8] bg-[#2A241E] ring-1 ring-[#F5F1E8]' : 'border-[#2855A8] bg-[#EEF2FF] ring-1 ring-[#2855A8]')
+                    : (isDarkMode ? 'border-zinc-800 hover:border-zinc-600 bg-[#1E1A15]' : 'border-zinc-800 hover:border-zinc-600 bg-stone-100/50')
+                }`}
+              >
+                <Glasses size={16} className={`shrink-0 mt-0.5 ${appMode === 'personal' ? 'text-[#2855A8]' : isDarkMode ? 'text-stone-400' : 'text-zinc-500'}`} />
+                <div>
+                  <div className={`text-xs font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>For Me</div>
+                  <div className={`text-[10px] mt-0.5 leading-tight font-medium ${isDarkMode ? 'text-stone-400' : 'text-[#4A3C34]'}`}>See images and the web through your own color vision</div>
+                </div>
+              </button>
+            </div>
+
             <div className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between ${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} p-2 rounded-none border border-zinc-800 retro-shadow gap-3`}>
               <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1 w-full">
-                <button 
-                  onClick={() => setViewMode('palette')}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
-                    viewMode === 'palette' 
-                      ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white') 
-                      : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
-                  }`}
-                >
-                  <Palette size={16} />
-                  Palette
-                </button>
-                <button 
-                  onClick={() => setViewMode('wheel')}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
-                    viewMode === 'wheel' 
-                      ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white') 
-                      : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
-                  }`}
-                >
-                  <Disc size={16} />
-                  Wheel
-                </button>
-                <button 
-                  onClick={() => setViewMode('preview')}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
-                    viewMode === 'preview' 
-                      ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white') 
-                      : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
-                  }`}
-                >
-                  <Eye size={16} />
-                  Preview
-                </button>
-                <button
-                  onClick={() => setViewMode('system')}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
-                    viewMode === 'system'
-                      ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white')
-                      : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
-                  }`}
-                >
-                  <Eye size={16} />
-                  Accessibility
-                </button>
-                <button
-                  onClick={() => setViewMode('image')}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
-                    viewMode === 'image'
-                      ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white')
-                      : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
-                  }`}
-                >
-                  <Upload size={16} />
-                  Image
-                </button>
-                <button
-                  onClick={() => setViewMode('ishihara')}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
-                    viewMode === 'ishihara'
-                      ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white')
-                      : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
-                  }`}
-                >
-                  <ScanEye size={16} />
-                  Plate Test
-                </button>
-                <button
-                  onClick={() => setViewMode('lens')}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
-                    viewMode === 'lens'
-                      ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white')
-                      : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
-                  }`}
-                >
-                  <Glasses size={16} />
-                  Vision Lens
-                </button>
-                <button
-                  onClick={() => setViewMode('calibrate')}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
-                    viewMode === 'calibrate'
-                      ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white')
-                      : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
-                  }`}
-                >
-                  <Crosshair size={16} />
-                  Calibrate
-                </button>
+                {TABS[appMode].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setViewMode(tab.id)}
+                    className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-none text-sm font-bold transition-all ${
+                      viewMode === tab.id
+                        ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-[#2855A8] text-white')
+                        : (isDarkMode ? 'text-stone-100 hover:bg-[#2A241E]' : 'text-zinc-900 hover:bg-zinc-900 hover:text-white')
+                    }`}
+                  >
+                    <tab.icon size={16} />
+                    {tab.label}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div className={`${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} px-4 py-2.5 rounded-none border border-zinc-800 retro-shadow flex items-center gap-3`}>
-              <div
-                className="w-4 h-4 rounded-none shrink-0 border border-black/20"
-                style={{ backgroundColor: baseColor }}
-              />
-              <div className="flex flex-col min-w-0">
-                <span className={`text-[9px] font-bold uppercase tracking-widest leading-none mb-0.5 ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>Theory Mode</span>
-                <span className={`text-xs font-black ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'} uppercase tracking-[0.12em] leading-none truncate`}>
-                  {rule.replace(/-/g, ' ')}
-                </span>
+            {appMode === 'designer' && (
+              <div className={`${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} px-4 py-2.5 rounded-none border border-zinc-800 retro-shadow flex items-center gap-3`}>
+                <div
+                  className="w-4 h-4 rounded-none shrink-0 border border-black/20"
+                  style={{ backgroundColor: baseColor }}
+                />
+                <div className="flex flex-col min-w-0">
+                  <span className={`text-[9px] font-bold uppercase tracking-widest leading-none mb-0.5 ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>Theory Mode</span>
+                  <span className={`text-xs font-black ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'} uppercase tracking-[0.12em] leading-none truncate`}>
+                    {rule.replace(/-/g, ' ')}
+                  </span>
+                </div>
+                <div className={`ml-auto text-[10px] font-mono font-bold ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'} shrink-0`}>
+                  {baseColor.toUpperCase()}
+                </div>
               </div>
-              <div className={`ml-auto text-[10px] font-mono font-bold ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'} shrink-0`}>
-                {baseColor.toUpperCase()}
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="flex-1 flex flex-col min-h-0">
@@ -778,7 +774,10 @@ export default function App() {
           </div>
         </section>
 
-        {/* Sidebar Controls */}
+        {/* Sidebar Controls — palette-building UI, not relevant to the
+            personal (Vision Lens / Calibrate) tools, so it only shows up
+            alongside the designer tabs. */}
+        {appMode === 'designer' && (
         <aside className="lg:col-span-4 flex flex-col">
           <section className={`${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} p-6 rounded-none border border-zinc-800 retro-shadow space-y-6 h-full flex flex-col relative overflow-hidden`}>
             {/* Bauhaus dot grid decoration */}
@@ -876,6 +875,7 @@ export default function App() {
             </div>
           </section>
         </aside>
+        )}
       </main>
 
       {/* Agent Settings Modal */}
