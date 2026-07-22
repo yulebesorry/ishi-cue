@@ -441,7 +441,7 @@ export default function App() {
               >
                 <LayoutGrid size={16} className={`shrink-0 mt-0.5 ${appMode === 'designer' ? 'text-[#2855A8]' : isDarkMode ? 'text-stone-400' : 'text-zinc-500'}`} />
                 <div>
-                  <div className={`text-xs font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>For Designers</div>
+                  <div className={`text-xs font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>Design Mode</div>
                   <div className={`text-[10px] mt-0.5 leading-tight font-medium ${isDarkMode ? 'text-stone-400' : 'text-[#4A3C34]'}`}>Build &amp; audit color systems for colorblind and low-vision users</div>
                 </div>
               </button>
@@ -455,7 +455,7 @@ export default function App() {
               >
                 <Glasses size={16} className={`shrink-0 mt-0.5 ${appMode === 'personal' ? 'text-[#2855A8]' : isDarkMode ? 'text-stone-400' : 'text-zinc-500'}`} />
                 <div>
-                  <div className={`text-xs font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>For Me</div>
+                  <div className={`text-xs font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>Vision Mode</div>
                   <div className={`text-[10px] mt-0.5 leading-tight font-medium ${isDarkMode ? 'text-stone-400' : 'text-[#4A3C34]'}`}>See images and the web through your own color vision</div>
                 </div>
               </button>
