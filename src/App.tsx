@@ -78,6 +78,7 @@ const TABS: Record<AppMode, { id: ViewMode; label: string; icon: typeof Palette 
   personal: [
     { id: 'lens', label: 'Vision Lens', icon: Glasses },
     { id: 'calibrate', label: 'Calibrate', icon: Crosshair },
+    { id: 'ishihara', label: 'Plate Test', icon: ScanEye },
   ],
 };
 

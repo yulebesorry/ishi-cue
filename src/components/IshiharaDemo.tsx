@@ -3,7 +3,8 @@ import { motion } from 'motion/react';
 import { PaletteColor } from '../types';
 import { ColorBlindType } from '../colorUtils';
 import { PLATE_SIZE, buildDots, buildTextMask, drawPlate, figureVisible } from '../ishihara';
-import { useActiveCVDProfile } from '../profile';
+import { useActiveCVDProfile, useVisionProfile } from '../profile';
+import { PatternOverlay } from '../patterns';
 import { ScanEye, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface IshiharaDemoProps {
@@ -29,6 +30,7 @@ const SEVERITY_PRESETS = [
 
 export const IshiharaDemo: React.FC<IshiharaDemoProps> = ({ palette, isDarkMode }) => {
   const activeProfile = useActiveCVDProfile();
+  const { patternsEnabled } = useVisionProfile();
   const [digit,     setDigit]     = useState('8');
   const [figureIdx, setFigureIdx] = useState(0);
   const [bgIdx,     setBgIdx]     = useState(Math.min(1, palette.length - 1));
@@ -120,12 +122,14 @@ export const IshiharaDemo: React.FC<IshiharaDemoProps> = ({ palette, isDarkMode 
               <button
                 key={i}
                 onClick={() => setFigureIdx(i)}
-                className={`w-8 h-8 border-2 transition-all hover:scale-110 ${
+                className={`relative w-8 h-8 border-2 transition-all hover:scale-110 ${
                   figureIdx === i ? 'border-zinc-900 dark:border-white scale-110' : 'border-transparent'
                 }`}
                 style={{ backgroundColor: c.hex }}
                 title={c.name}
-              />
+              >
+                {patternsEnabled && <PatternOverlay index={i} hex={c.hex} />}
+              </button>
             ))}
           </div>
           <p className={`text-[11px] font-mono font-bold ${muted}`}>{palette[figureIdx]?.hex?.toUpperCase()}</p>
@@ -139,12 +143,14 @@ export const IshiharaDemo: React.FC<IshiharaDemoProps> = ({ palette, isDarkMode 
               <button
                 key={i}
                 onClick={() => setBgIdx(i)}
-                className={`w-8 h-8 border-2 transition-all hover:scale-110 ${
+                className={`relative w-8 h-8 border-2 transition-all hover:scale-110 ${
                   bgIdx === i ? 'border-zinc-900 dark:border-white scale-110' : 'border-transparent'
                 }`}
                 style={{ backgroundColor: c.hex }}
                 title={c.name}
-              />
+              >
+                {patternsEnabled && <PatternOverlay index={i} hex={c.hex} />}
+              </button>
             ))}
           </div>
           <p className={`text-[11px] font-mono font-bold ${muted}`}>{palette[bgIdx]?.hex?.toUpperCase()}</p>
