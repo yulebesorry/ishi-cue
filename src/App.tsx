@@ -282,123 +282,6 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-2 sm:gap-4">
-          {/* Personal vision accommodation controls — only relevant once
-              you're in Vision Mode; Design Mode uses its own explicit
-              simulation/audit tools instead of recoloring the app chrome. */}
-          {appMode === 'personal' && (
-          <>
-          {/* Vision mode picker: tell us how you see, the site adapts */}
-          <div ref={visionMenuRef} className="relative hidden sm:block">
-            <button
-              onClick={() => setShowVisionMenu(v => !v)}
-              title="Pick your color vision type and the whole site adapts"
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest border border-zinc-800 transition-colors ${
-                profile
-                  ? (isDarkMode ? 'bg-[#2A241E] text-stone-200 hover:bg-[#F5F1E8] hover:text-[#1A1A1A]' : 'bg-[#EEF2FF] text-[#2855A8] hover:bg-[#2855A8] hover:text-white')
-                  : (isDarkMode ? 'text-stone-300 hover:bg-[#2A241E]' : 'text-[#2C2418] hover:bg-zinc-900 hover:text-white')
-              }`}
-            >
-              <Crosshair size={11} />
-              {profile
-                ? (profile.type === 'none' ? 'Typical Vision' : `${CB_LABELS[profile.type]} · ${Math.round(profile.severity * 100)}%`)
-                : 'My Vision'}
-              <ChevronDown size={10} className={`transition-transform ${showVisionMenu ? 'rotate-180' : ''}`} />
-            </button>
-
-            <AnimatePresence>
-              {showVisionMenu && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                  className={`absolute right-0 top-full mt-2 w-80 border border-zinc-800 retro-shadow z-50 ${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'}`}
-                >
-                  <div className={`px-4 py-3 border-b border-zinc-800`}>
-                    <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-[#F5F1E8]' : 'text-[#1A1A1A]'}`}>How do you see color?</p>
-                    <p className={`text-[9px] mt-0.5 font-medium leading-relaxed ${isDarkMode ? 'text-stone-400' : 'text-[#4A3C34]'}`}>
-                      Pick the closest match — colors, contrast, and patterns across the site adjust for you.
-                    </p>
-                  </div>
-                  {VISION_MODES.map(mode => {
-                    const isActive = profile ? profile.type === mode.type : mode.type === 'none';
-                    return (
-                      <button
-                        key={mode.type}
-                        onClick={() => pickVisionMode(mode.type)}
-                        className={`w-full text-left px-4 py-2.5 border-b border-zinc-800/50 transition-colors group ${
-                          isActive
-                            ? (isDarkMode ? 'bg-[#2A241E]' : 'bg-[#EEF2FF]')
-                            : (isDarkMode ? 'hover:bg-[#2A241E]' : 'hover:bg-stone-200/60')
-                        }`}
-                      >
-                        <span className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-wider ${isDarkMode ? 'text-stone-100' : 'text-[#1A1A1A]'}`}>
-                          {mode.label}
-                          {isActive && <span className="text-[8px] px-1.5 py-0.5 bg-[#2855A8] text-white tracking-widest">Active</span>}
-                        </span>
-                        <span className={`block mt-0.5 text-[9px] font-medium leading-snug normal-case ${isDarkMode ? 'text-stone-400' : 'text-[#4A3C34]'}`}>
-                          {mode.sub}
-                        </span>
-                      </button>
-                    );
-                  })}
-                  <button
-                    onClick={() => { setShowVisionMenu(false); setViewMode('calibrate'); }}
-                    className={`w-full flex items-center justify-between px-4 py-3 text-[9px] font-black uppercase tracking-widest transition-colors ${
-                      isDarkMode ? 'text-stone-200 hover:bg-[#F5F1E8] hover:text-[#1A1A1A]' : 'text-[#2855A8] hover:bg-[#2855A8] hover:text-white'
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5"><ScanEye size={11} /> Not sure? Take the 1-minute screening</span>
-                    <span>→</span>
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-          {/* Assist filter toggle — recolors the site through the user's corrective lens */}
-          {hasCVDProfile && (
-            <button
-              onClick={() => setAssistEnabled(!assistEnabled)}
-              title={assistActive
-                ? 'Assist on — the site is recolored so the colors you confuse pull apart. Click to see true colors.'
-                : 'Assist off — showing true colors. Click to recolor the site for your vision.'}
-              className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest border border-zinc-800 transition-colors ${
-                assistActive
-                  ? 'bg-[#2855A8] text-white'
-                  : (isDarkMode ? 'text-stone-300 hover:bg-[#2A241E]' : 'text-[#2C2418] hover:bg-zinc-900 hover:text-white')
-              }`}
-            >
-              <Wand2 size={11} />
-              Assist · {assistActive ? 'On' : 'Off'}
-            </button>
-          )}
-          {/* Pattern overlay toggle — texture as a second channel for color identity */}
-          <button
-            onClick={() => setPatternsEnabled(!patternsEnabled)}
-            title={patternsEnabled ? 'Pattern overlays on — each palette color carries a unique texture' : 'Turn on pattern overlays so colors are tellable apart by texture, not just hue'}
-            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest border border-zinc-800 transition-colors ${
-              patternsEnabled
-                ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-zinc-900 text-white')
-                : (isDarkMode ? 'text-stone-300 hover:bg-[#2A241E]' : 'text-[#2C2418] hover:bg-zinc-900 hover:text-white')
-            }`}
-          >
-            <Grip size={11} />
-            Patterns · {patternsEnabled ? 'On' : 'Off'}
-          </button>
-          {/* High contrast: white paper + navy ink, max luminance contrast */}
-          <button
-            onClick={() => setIsHighContrast(v => !v)}
-            title="High contrast — white background with navy ink (17:1) instead of cream"
-            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest border border-zinc-800 transition-colors ${
-              isHighContrast
-                ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-zinc-900 text-white')
-                : (isDarkMode ? 'text-stone-300 hover:bg-[#2A241E]' : 'text-[#2C2418] hover:bg-zinc-900 hover:text-white')
-            }`}
-          >
-            <span className="w-2.5 h-2.5 border border-current" style={{ background: 'linear-gradient(135deg, currentColor 50%, transparent 50%)' }} aria-hidden="true" />
-            Contrast · {isHighContrast ? 'On' : 'Off'}
-          </button>
-          </>
-          )}
           {/* Retro Theme Slider */}
           <div className="flex items-center gap-2 sm:gap-3">
             <Sun size={12} className={`sm:w-[14px] sm:h-[14px] ${isDarkMode ? 'text-gray-600' : 'text-zinc-900'}`} />
@@ -467,6 +350,127 @@ export default function App() {
                 </div>
               </button>
             </div>
+
+            {/* Vision Tools — these adapt the app itself to your vision, so
+                they only apply in Vision Mode. Design Mode audits a palette
+                against CVD types with its own explicit tools instead. */}
+            {appMode === 'personal' && (
+              <div className={`${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} p-3 rounded-none border border-zinc-800 retro-shadow space-y-2`}>
+                <span className={`text-[9px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-stone-300' : 'text-[#2C2418]'}`}>Vision Tools</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {/* Vision mode picker: tell us how you see, the site adapts */}
+                  <div ref={visionMenuRef} className="relative">
+                    <button
+                      onClick={() => setShowVisionMenu(v => !v)}
+                      title="Pick your color vision type and the whole site adapts"
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest border border-zinc-800 transition-colors ${
+                        profile
+                          ? (isDarkMode ? 'bg-[#2A241E] text-stone-200 hover:bg-[#F5F1E8] hover:text-[#1A1A1A]' : 'bg-[#EEF2FF] text-[#2855A8] hover:bg-[#2855A8] hover:text-white')
+                          : (isDarkMode ? 'text-stone-300 hover:bg-[#2A241E]' : 'text-[#2C2418] hover:bg-zinc-900 hover:text-white')
+                      }`}
+                    >
+                      <Crosshair size={11} />
+                      {profile
+                        ? (profile.type === 'none' ? 'Typical Vision' : `${CB_LABELS[profile.type]} · ${Math.round(profile.severity * 100)}%`)
+                        : 'My Vision'}
+                      <ChevronDown size={10} className={`transition-transform ${showVisionMenu ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    <AnimatePresence>
+                      {showVisionMenu && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 6, scale: 0.98 }}
+                          className={`absolute left-0 top-full mt-2 w-80 border border-zinc-800 retro-shadow z-50 ${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'}`}
+                        >
+                          <div className={`px-4 py-3 border-b border-zinc-800`}>
+                            <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-[#F5F1E8]' : 'text-[#1A1A1A]'}`}>How do you see color?</p>
+                            <p className={`text-[9px] mt-0.5 font-medium leading-relaxed ${isDarkMode ? 'text-stone-400' : 'text-[#4A3C34]'}`}>
+                              Pick the closest match — colors, contrast, and patterns across the site adjust for you.
+                            </p>
+                          </div>
+                          {VISION_MODES.map(mode => {
+                            const isActive = profile ? profile.type === mode.type : mode.type === 'none';
+                            return (
+                              <button
+                                key={mode.type}
+                                onClick={() => pickVisionMode(mode.type)}
+                                className={`w-full text-left px-4 py-2.5 border-b border-zinc-800/50 transition-colors group ${
+                                  isActive
+                                    ? (isDarkMode ? 'bg-[#2A241E]' : 'bg-[#EEF2FF]')
+                                    : (isDarkMode ? 'hover:bg-[#2A241E]' : 'hover:bg-stone-200/60')
+                                }`}
+                              >
+                                <span className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-wider ${isDarkMode ? 'text-stone-100' : 'text-[#1A1A1A]'}`}>
+                                  {mode.label}
+                                  {isActive && <span className="text-[8px] px-1.5 py-0.5 bg-[#2855A8] text-white tracking-widest">Active</span>}
+                                </span>
+                                <span className={`block mt-0.5 text-[9px] font-medium leading-snug normal-case ${isDarkMode ? 'text-stone-400' : 'text-[#4A3C34]'}`}>
+                                  {mode.sub}
+                                </span>
+                              </button>
+                            );
+                          })}
+                          <button
+                            onClick={() => { setShowVisionMenu(false); setViewMode('calibrate'); }}
+                            className={`w-full flex items-center justify-between px-4 py-3 text-[9px] font-black uppercase tracking-widest transition-colors ${
+                              isDarkMode ? 'text-stone-200 hover:bg-[#F5F1E8] hover:text-[#1A1A1A]' : 'text-[#2855A8] hover:bg-[#2855A8] hover:text-white'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5"><ScanEye size={11} /> Not sure? Take the 1-minute screening</span>
+                            <span>→</span>
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  {/* Assist filter toggle — recolors the site through the user's corrective lens */}
+                  {hasCVDProfile && (
+                    <button
+                      onClick={() => setAssistEnabled(!assistEnabled)}
+                      title={assistActive
+                        ? 'Assist on — the site is recolored so the colors you confuse pull apart. Click to see true colors.'
+                        : 'Assist off — showing true colors. Click to recolor the site for your vision.'}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest border border-zinc-800 transition-colors ${
+                        assistActive
+                          ? 'bg-[#2855A8] text-white'
+                          : (isDarkMode ? 'text-stone-300 hover:bg-[#2A241E]' : 'text-[#2C2418] hover:bg-zinc-900 hover:text-white')
+                      }`}
+                    >
+                      <Wand2 size={11} />
+                      Assist · {assistActive ? 'On' : 'Off'}
+                    </button>
+                  )}
+                  {/* Pattern overlay toggle — texture as a second channel for color identity */}
+                  <button
+                    onClick={() => setPatternsEnabled(!patternsEnabled)}
+                    title={patternsEnabled ? 'Pattern overlays on — each palette color carries a unique texture' : 'Turn on pattern overlays so colors are tellable apart by texture, not just hue'}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest border border-zinc-800 transition-colors ${
+                      patternsEnabled
+                        ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-zinc-900 text-white')
+                        : (isDarkMode ? 'text-stone-300 hover:bg-[#2A241E]' : 'text-[#2C2418] hover:bg-zinc-900 hover:text-white')
+                    }`}
+                  >
+                    <Grip size={11} />
+                    Patterns · {patternsEnabled ? 'On' : 'Off'}
+                  </button>
+                  {/* High contrast: white paper + navy ink, max luminance contrast */}
+                  <button
+                    onClick={() => setIsHighContrast(v => !v)}
+                    title="High contrast — white background with navy ink (17:1) instead of cream"
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest border border-zinc-800 transition-colors ${
+                      isHighContrast
+                        ? (isDarkMode ? 'bg-[#F5F1E8] text-[#1A1A1A]' : 'bg-zinc-900 text-white')
+                        : (isDarkMode ? 'text-stone-300 hover:bg-[#2A241E]' : 'text-[#2C2418] hover:bg-zinc-900 hover:text-white')
+                    }`}
+                  >
+                    <span className="w-2.5 h-2.5 border border-current" style={{ background: 'linear-gradient(135deg, currentColor 50%, transparent 50%)' }} aria-hidden="true" />
+                    Contrast · {isHighContrast ? 'On' : 'Off'}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between ${isDarkMode ? 'bg-[#221E18]' : 'bg-[#F5F1E8]'} p-2 rounded-none border border-zinc-800 retro-shadow gap-3`}>
               <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1 w-full">
