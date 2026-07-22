@@ -282,6 +282,11 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-2 sm:gap-4">
+          {/* Personal vision accommodation controls — only relevant once
+              you're in Vision Mode; Design Mode uses its own explicit
+              simulation/audit tools instead of recoloring the app chrome. */}
+          {appMode === 'personal' && (
+          <>
           {/* Vision mode picker: tell us how you see, the site adapts */}
           <div ref={visionMenuRef} className="relative hidden sm:block">
             <button
@@ -392,6 +397,8 @@ export default function App() {
             <span className="w-2.5 h-2.5 border border-current" style={{ background: 'linear-gradient(135deg, currentColor 50%, transparent 50%)' }} aria-hidden="true" />
             Contrast · {isHighContrast ? 'On' : 'Off'}
           </button>
+          </>
+          )}
           {/* Retro Theme Slider */}
           <div className="flex items-center gap-2 sm:gap-3">
             <Sun size={12} className={`sm:w-[14px] sm:h-[14px] ${isDarkMode ? 'text-gray-600' : 'text-zinc-900'}`} />
@@ -890,7 +897,7 @@ export default function App() {
       <footer className={`max-w-[1800px] mx-auto px-8 py-12 border-t border-zinc-800 mt-12 flex flex-col md:flex-row items-center justify-between gap-6 ${isDarkMode ? 'text-stone-400' : 'text-[#2C2418]'}`}>
         <div className="flex items-center gap-2 text-sm">
           <Info size={16} />
-          <span>Colors generated using standard color theory algorithms and Gemini AI.</span>
+          <span>Colors generated using standard color theory algorithms.</span>
         </div>
         <div className="flex items-center gap-6 text-xs font-bold uppercase tracking-widest">
           <a href="#" className={`hover:${isDarkMode ? 'text-white' : 'text-zinc-900'} transition-colors`}>Documentation</a>
